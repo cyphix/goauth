@@ -14,7 +14,40 @@ Reusable authentication stack for Echo + React applications:
 
 The companion React package lives in [`web/auth-react`](web/auth-react).
 
-## Backend integration
+## Dependencies
+
+Besides Echo, GORM and go-redis, the module builds on two sibling `cyphix`
+modules:
+
+- **[`github.com/cyphix/gologg`](https://github.com/cyphix/gologg)** —
+  zerolog-based structured logging. goauth obtains its logger via
+  `logg.Ctx("goauth", "core")`, so log output automatically matches any host
+  application that also logs through gologg (level, format and writer are
+  configured once by the host).
+- **[`github.com/cyphix/godatabases`](https://github.com/cyphix/godatabases)** —
+  database helpers. goauth uses `godatabases/redis` for the SCS session store
+  (`NewRedisStoreWithPrefix(client, "goauth:session:")`), which keeps all
+  session keys namespaced in Redis. The host app is free to build its
+  `*gorm.DB` / `*redis.Client` with godatabases too (that is what worldbuilder
+  does), but goauth only requires the raw handles.
+
+> **Note:** `go.mod` currently resolves both modules via
+> `replace` directives to sibling checkouts (`../gologg`, `../godatabases`).
+> This matches how the module is consumed as a git submodule next to its
+> siblings (e.g. under `pkg/` in a monorepo). To use goauth standalone, check
+> out all three repos side by side, or drop the `replace` lines and depend on
+> tagged versions.
+
+## Backend integration (Echo)
+
+goauth is handed ready-made database handles — it never opens connections
+itself. Everything below assumes an existing Echo app.
+
+**1. Provide the handles.** A `*gorm.DB` (Postgres, SQLite, … — auth tables
+are AutoMigrated with an `auth_` prefix on `New`) and a `*redis.Client`
+(sessions + login throttling).
+
+**2. Assemble the module.**
 
 ```go
 import "github.com/cyphix/goauth"
@@ -23,23 +56,44 @@ a, err := goauth.New(goauth.Config{
     DB:                gormDB,        // *gorm.DB — tables are AutoMigrated with an auth_ prefix
     Redis:             redisClient,   // *redis.Client — sessions + throttling
     RPDisplayName:     "My App",
-    RPID:              "localhost",   // WebAuthn relying-party ID (domain)
-    Origins:           []string{"http://localhost:5173"},
+    RPID:              "localhost",   // WebAuthn relying-party ID (domain); empty disables passkeys
+    Origins:           []string{"http://localhost:5173"},  // browser origins: WebAuthn + Origin CSRF check
     PublicBaseURL:     "http://localhost:5173", // used for the OIDC redirect URL
+    CookieSecure:      false,         // true behind HTTPS
     InitAdminUsername: os.Getenv("AUTH_INIT_ADMIN_USERNAME"),
     InitAdminPassword: os.Getenv("AUTH_INIT_ADMIN_PASSWD"),
     DevAutoLogin:      isDev, // NEVER outside development
 })
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+**3. Mount it on Echo.** The session middleware must be global (it also
+performs the Origin CSRF check); routes mount under a group of your choice
+(`/auth` is what the React package expects by default):
+
+```go
+e := echo.New()
 
 e.Use(a.SessionMiddleware())          // global: session load/save + Origin CSRF check
 a.RegisterRoutes(e.Group("/auth"))    // all auth endpoints
 
-api := e.Group("/graphql", a.RequireAuthenticated())
+// Protect your own routes with the provided guards:
+api := e.Group("/api", a.RequireAuthenticated())
 admin := e.Group("/admin", a.RequireRole(goauth.RoleAdmin))
-
-user := goauth.CurrentUser(c)         // in handlers
-user := goauth.UserFromContext(ctx)   // in GraphQL resolvers / services
 ```
+
+**4. Read the current user** where you need it:
+
+```go
+user := goauth.CurrentUser(c)         // in Echo handlers
+user := goauth.UserFromContext(ctx)   // in services / GraphQL resolvers
+```
+
+The init admin is created on startup when the users table is empty. On the
+frontend, pair this with [`@cyphix/auth-react`](web/auth-react) (`LoginForm`,
+`requireAuthBeforeLoad`, admin panels), or call the endpoints below directly.
 
 ## Endpoints (mounted at `/auth` by default)
 
