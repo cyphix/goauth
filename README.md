@@ -12,7 +12,7 @@ Reusable authentication stack for Echo + React applications:
 - **Init admin bootstrap** — first admin created from config when the users table is empty
 - **Dev auto-login** — opt-in, dev-only endpoint for frictionless manual testing
 
-The companion React package lives in [`packages/auth-react`](packages/auth-react).
+The companion React package lives in [`web/auth-react`](web/auth-react).
 
 ## Backend integration
 

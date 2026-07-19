@@ -9,7 +9,7 @@ app (Vite handles this out of the box).
 ```jsonc
 // package.json (repo consumes goauth as a submodule at pkg/goauth)
 "dependencies": {
-  "@cyphix/auth-react": "file:../pkg/goauth/packages/auth-react"
+  "@cyphix/auth-react": "file:../pkg/goauth/web/auth-react"
 }
 ```
 
