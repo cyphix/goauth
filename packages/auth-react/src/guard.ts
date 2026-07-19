@@ -57,9 +57,12 @@ export function requireAuthBeforeLoad(options: RequireAuthOptions = {}) {
       }
     }
 
-    throw redirect({
+    // loginPath is dynamic, so this cannot be statically typed against the
+    // consumer's route tree.
+    const options = {
       to: loginPath,
       search: { redirect: location.href },
-    });
+    };
+    throw redirect(options as never);
   };
 }
