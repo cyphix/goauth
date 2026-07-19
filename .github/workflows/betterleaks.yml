@@ -1,0 +1,148 @@
+# Secret scanning for PRs and pushes to main.
+# Local parity: ./scripts/install-git-hooks.sh && scripts/betterleaks-scan.sh
+name: Secret scan
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  BETTERLEAKS_IMAGE: ghcr.io/betterleaks/betterleaks@sha256:7a43a20d40be02a9c13801a6485f7bea9d9cdba512263440eae972103c5291f1
+
+jobs:
+  betterleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve diff range
+        id: refs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            if [ -z "${PR_BASE}" ] || [ -z "${PR_HEAD}" ]; then
+              echo "::error::Missing pull_request base/head SHA."
+              exit 1
+            fi
+            RANGE="${PR_BASE}..${PR_HEAD}"
+          else
+            if [ -z "${PUSH_BEFORE}" ] || [ "${PUSH_BEFORE}" = "0000000000000000000000000000000000000000" ]; then
+              RANGE="${PUSH_SHA}"
+            else
+              RANGE="${PUSH_BEFORE}..${PUSH_SHA}"
+            fi
+          fi
+          echo "range=${RANGE}" >> "${GITHUB_OUTPUT}"
+          echo "Scanning ${RANGE}"
+
+      - name: Pull BetterLeaks image
+        run: |
+          docker pull "${BETTERLEAKS_IMAGE}"
+          docker run --rm "${BETTERLEAKS_IMAGE}" version
+
+      - name: Run BetterLeaks
+        id: scan
+        continue-on-error: true
+        env:
+          RANGE: ${{ steps.refs.outputs.range }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e GIT_CONFIG_COUNT=1 \
+            -e GIT_CONFIG_KEY_0=safe.directory \
+            -e GIT_CONFIG_VALUE_0=/workspace \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            "${BETTERLEAKS_IMAGE}" \
+            git . \
+              --log-opts "${RANGE}" \
+              --config .betterleaks.toml \
+              --report-format json \
+              --report-path findings.json \
+              --redact \
+              --no-banner \
+              --git-workers 4 \
+              --exit-code 0
+
+      - name: Validate findings report
+        id: findings
+        if: always()
+        env:
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "${SCAN_OUTCOME}" != "success" ] && [ ! -s findings.json ]; then
+            echo "::error::BetterLeaks scan failed and produced no readable JSON report."
+            echo "scan_failed=true" >> "${GITHUB_OUTPUT}"
+            exit 1
+          fi
+          if ! jq empty findings.json >/dev/null 2>&1; then
+            echo "::error::BetterLeaks produced invalid JSON."
+            echo "scan_failed=true" >> "${GITHUB_OUTPUT}"
+            exit 1
+          fi
+          if ! TOTAL=$(jq -er '
+            if type == "null" then
+              0
+            elif type == "array" then
+              length
+            else
+              error("expected top-level array or null, got \(type)")
+            end
+          ' findings.json); then
+            echo "::error::BetterLeaks JSON has unexpected shape."
+            echo "scan_failed=true" >> "${GITHUB_OUTPUT}"
+            exit 1
+          fi
+          echo "total=${TOTAL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Annotate findings
+        if: always() && steps.findings.outputs.scan_failed != 'true' && steps.findings.outputs.total != '0'
+        run: |
+          jq -r '
+            def safe: tostring | gsub("[\r\n]"; " ") | gsub("::"; "[colon-colon]");
+            .[] |
+            "::error file=" + ((.Attributes.path // "?") | safe) +
+            ",line=" + ((.StartLine // 0) | tostring) +
+            "::Secret leak detected: rule=" + ((.RuleID // "?") | safe) +
+            " (commit " + (((.Attributes["git.sha"] // "?")[0:7]) | safe) + ")"
+          ' findings.json
+
+      - name: Upload findings artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: betterleaks-findings-${{ github.run_id }}
+          path: findings.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Fail on findings
+        if: always() && steps.findings.outputs.scan_failed != 'true' && steps.findings.outputs.total != '0'
+        env:
+          TOTAL: ${{ steps.findings.outputs.total }}
+        run: |
+          echo "::error::Secret scan failed: ${TOTAL} potential secret(s) in diff."
+          exit 1
+
+      - name: Surface scan failure
+        if: always() && steps.findings.outputs.scan_failed == 'true'
+        run: |
+          echo "::error::BetterLeaks scan failed before producing a readable report."
+          exit 1

@@ -1,0 +1,34 @@
+title = "goauth secret scanning"
+
+# Inherit upstream detection rules; repo filters below reduce false positives.
+[extend]
+useDefault = true
+
+# Skip generated / dependency-lock content.
+prefilter = '''
+filter.matchesAny(get(attributes, "path", ""), [
+  `(?i)\.(?:bmp|gif|jpe?g|png|svg|tiff|pdf|exe|dll|so|dylib|woff2?)$`,
+  `(?:^|/)node_modules(?:/.*)?$`,
+  `(?:^|/)pnpm-lock\.yaml$`,
+  `(?:^|/)go\.sum$`,
+  `(?:^|/)web/auth-react/dist(?:/.*)?$`
+])
+'''
+
+# Drop test fixtures: everything under testdata/ and credential strings in Go tests.
+filter = '''
+filter.containsAny(finding["secret"], [
+  "EXAMPLE",
+  "CHANGEME",
+  "goauth-test-secret"
+])
+||
+filter.matchesAny(get(attributes, "path", ""), [
+  `(?:^|/)testdata(?:/.*)?$`
+])
+||
+(
+  filter.matchesAny(get(attributes, "path", ""), [`(?:^|/)[^/]+_test\.go$`]) &&
+  filter.containsAny(finding["secret"], ["password", "secret"])
+)
+'''

@@ -80,3 +80,14 @@ go test ./...
 
 The suite uses in-memory SQLite + miniredis, a mock OIDC provider and a
 software WebAuthn authenticator — no external services required.
+
+## Secret scanning
+
+BetterLeaks gates pushes and PRs (`.github/workflows/betterleaks.yml`); the
+repo config lives in [`.betterleaks.toml`](.betterleaks.toml). Enable the local
+pre-push scan once per clone:
+
+```bash
+./scripts/install-git-hooks.sh   # sets core.hooksPath; requires Docker or the betterleaks CLI
+scripts/betterleaks-scan.sh      # manual scan of unpushed commits
+```

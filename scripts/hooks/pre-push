@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+SCAN="${ROOT}/scripts/betterleaks-scan.sh"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "${local_sha}" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+
+  if [ "${remote_sha}" = "0000000000000000000000000000000000000000" ]; then
+    # New branch: scan commits reachable from local_sha but not from upstream/main if present.
+    if git show-ref --verify --quiet refs/remotes/origin/main; then
+      RANGE="origin/main..${local_sha}"
+    else
+      RANGE="${local_sha}"
+    fi
+  else
+    RANGE="${remote_sha}..${local_sha}"
+  fi
+
+  echo "BetterLeaks pre-push: ${RANGE}"
+  "${SCAN}" "${RANGE}"
+done
