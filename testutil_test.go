@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"os"
 	"sync/atomic"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -27,10 +29,30 @@ func init() {
 	logg.SetSilent(true)
 }
 
+// newTestDB returns an isolated database for one test. Default: in-memory
+// SQLite. Set TEST_DATABASE_URL to a Postgres DSN to run the whole suite
+// against real Postgres (validates jsonb columns and partial indexes on the
+// production engine). Tests run serially, so Postgres mode drops the auth
+// tables between tests for isolation.
 func newTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
+
+	gormCfg := &gorm.Config{Logger: gormlogger.Default.LogMode(gormlogger.Silent)}
+
+	if dsn := os.Getenv("TEST_DATABASE_URL"); dsn != "" {
+		db, err := gorm.Open(postgres.Open(dsn), gormCfg)
+		require.NoError(t, err)
+		require.NoError(t, db.Migrator().DropTable(
+			"auth_webauthn_credentials", "auth_oidc_providers", "auth_settings", "auth_users",
+		))
+		sqlDB, err := db.DB()
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = sqlDB.Close() })
+		return db
+	}
+
 	dsn := fmt.Sprintf("file:goauth_test_%d?mode=memory&cache=shared", testDBCounter.Add(1))
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: gormlogger.Default.LogMode(gormlogger.Silent)})
+	db, err := gorm.Open(sqlite.Open(dsn), gormCfg)
 	require.NoError(t, err)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)

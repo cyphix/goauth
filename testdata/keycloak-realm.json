@@ -1,0 +1,36 @@
+{
+  "realm": "goauth-test",
+  "enabled": true,
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "goauth-test",
+      "name": "goauth integration test client",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "goauth-test-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"]
+    }
+  ],
+  "users": [
+    {
+      "username": "kcuser",
+      "enabled": true,
+      "firstName": "Keycloak",
+      "lastName": "User",
+      "email": "kcuser@example.com",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "KcUser123!",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}
