@@ -1,0 +1,28 @@
+{
+  "name": "@cyphix/auth-react",
+  "version": "0.1.0",
+  "description": "React client, hooks and components for the goauth authentication module",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "types": "./src/index.ts",
+  "files": ["src"],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5",
+    "@tanstack/react-router": ">=1",
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.90.16",
+    "@tanstack/react-router": "^1.146.2",
+    "@types/react": "^19.2.5",
+    "react": "^19.2.0",
+    "typescript": "~5.9.3"
+  }
+}
