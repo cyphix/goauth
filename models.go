@@ -48,8 +48,8 @@ type User struct {
 
 	// OIDC identity link (set when the account was provisioned by or linked
 	// to an OIDC provider).
-	OIDCProviderID *uint   `gorm:"index"`
-	OIDCSub        *string `gorm:"index"`
+	OIDCProviderID *uint   `gorm:"column:oidc_provider_id;index"`
+	OIDCSub        *string `gorm:"column:oidc_sub;index"`
 
 	Credentials []WebauthnCredential `gorm:"foreignKey:UserID"`
 }
@@ -83,8 +83,8 @@ type OIDCProvider struct {
 	Scopes string `gorm:"not null;default:''"`
 	// AutoProvision creates a local account on first login for unknown
 	// subjects. When false, only pre-linked users may log in.
-	AutoProvision bool `gorm:"not null;default:true"`
-	Enabled       bool `gorm:"not null;default:true"`
+	AutoProvision bool `gorm:"not null"`
+	Enabled       bool `gorm:"not null"`
 }
 
 func (OIDCProvider) TableName() string { return "auth_oidc_providers" }
@@ -92,7 +92,7 @@ func (OIDCProvider) TableName() string { return "auth_oidc_providers" }
 // Settings is the single-row runtime configuration.
 type Settings struct {
 	ID        uint     `gorm:"primarykey"`
-	OIDCMode  OIDCMode `gorm:"type:varchar(16);not null;default:disabled"`
+	OIDCMode  OIDCMode `gorm:"column:oidc_mode;type:varchar(16);not null;default:disabled"`
 	UpdatedAt time.Time
 }
 
