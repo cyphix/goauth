@@ -170,3 +170,9 @@ func UserFromContext(ctx context.Context) *User {
 	}
 	return nil
 }
+
+// ContextWithUser returns a child context that carries user for UserFromContext.
+// Useful in GraphQL/service unit tests that do not go through Echo middleware.
+func ContextWithUser(ctx context.Context, user *User) context.Context {
+	return context.WithValue(ctx, userContextKey, user)
+}
