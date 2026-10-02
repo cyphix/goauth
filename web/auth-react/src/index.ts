@@ -9,6 +9,8 @@ export {
   type PasskeyManagerProps,
 } from "./components/PasskeyManager.tsx";
 export {
+  type DeleteUserConfirmRenderProps,
+  type ResetPasswordRenderProps,
   UserManagementPanel,
   type UserManagementPanelProps,
 } from "./components/UserManagementPanel.tsx";
