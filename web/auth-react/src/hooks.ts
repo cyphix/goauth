@@ -10,6 +10,7 @@ import type {
   AuthSettings,
   CreateUserInput,
   OidcProviderInput,
+  UpdateProfileInput,
   UpdateUserInput,
 } from "./types.ts";
 
@@ -130,6 +131,15 @@ export function useChangePassword() {
       currentPassword: string;
       newPassword: string;
     }) => client.changePassword(currentPassword, newPassword),
+  });
+}
+
+export function useUpdateProfile() {
+  const client = useAuthClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateProfileInput) => client.updateProfile(input),
+    onSuccess: (user) => queryClient.setQueryData(authQueryKeys.me, user),
   });
 }
 

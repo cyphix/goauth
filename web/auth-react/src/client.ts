@@ -6,6 +6,7 @@ import type {
   OidcProviderAdmin,
   OidcProviderInput,
   Passkey,
+  UpdateProfileInput,
   UpdateUserInput,
 } from "./types.ts";
 
@@ -63,8 +64,8 @@ export class AuthClient {
     return request("GET", `${this.basePath}/config`);
   }
 
-  login(username: string, password: string): Promise<AuthUser> {
-    return request("POST", `${this.basePath}/login`, { username, password });
+  login(identifier: string, password: string): Promise<AuthUser> {
+    return request("POST", `${this.basePath}/login`, { identifier, password });
   }
 
   logout(): Promise<void> {
@@ -88,6 +89,10 @@ export class AuthClient {
       currentPassword,
       newPassword,
     });
+  }
+
+  updateProfile(input: UpdateProfileInput): Promise<AuthUser> {
+    return request("PATCH", `${this.basePath}/me`, input);
   }
 
   devLogin(): Promise<AuthUser> {

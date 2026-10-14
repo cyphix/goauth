@@ -12,24 +12,28 @@ import (
 type UserDTO struct {
 	ID           uint      `json:"id"`
 	Username     string    `json:"username"`
+	Email        *string   `json:"email"`
 	Role         Role      `json:"role"`
 	Disabled     bool      `json:"disabled"`
 	HasPassword  bool      `json:"hasPassword"`
 	PasskeyCount int       `json:"passkeyCount"`
 	OIDCLinked   bool      `json:"oidcLinked"`
 	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 func toUserDTO(u *User) UserDTO {
 	return UserDTO{
 		ID:           u.ID,
 		Username:     u.Username,
+		Email:        u.Email,
 		Role:         u.Role,
 		Disabled:     u.Disabled,
 		HasPassword:  u.HasPassword(),
 		PasskeyCount: len(u.Credentials),
 		OIDCLinked:   u.OIDCSub != nil,
 		CreatedAt:    u.CreatedAt,
+		UpdatedAt:    u.UpdatedAt,
 	}
 }
 
@@ -56,6 +60,7 @@ func (a *Auth) RegisterRoutes(g *echo.Group) {
 	g.GET("/me", a.handleMe)
 
 	authed := g.Group("", a.RequireAuthenticated())
+	authed.PATCH("/me", a.handleUpdateProfile)
 	authed.POST("/password", a.handleChangePassword)
 
 	a.registerPasskeyRoutes(g, authed)
@@ -94,8 +99,18 @@ func (a *Auth) handleConfig(c echo.Context) error {
 }
 
 type loginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	// Identifier is the login identifier: username or email. Username is
+	// accepted for backwards compatibility.
+	Identifier string `json:"identifier"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+}
+
+func (r *loginRequest) id() string {
+	if r.Identifier != "" {
+		return r.Identifier
+	}
+	return r.Username
 }
 
 func (a *Auth) handleLogin(c echo.Context) error {
@@ -106,11 +121,11 @@ func (a *Auth) handleLogin(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
-	if req.Username == "" || req.Password == "" {
+	if req.id() == "" || req.Password == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "username and password are required")
 	}
 
-	throttleKey := NormalizeUsername(req.Username) + ":" + c.RealIP()
+	throttleKey := NormalizeUsername(req.id()) + ":" + c.RealIP()
 	allowed, err := a.throttleAllow(c.Request().Context(), throttleKey)
 	if err != nil {
 		return err
@@ -119,7 +134,7 @@ func (a *Auth) handleLogin(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusTooManyRequests, "too many login attempts, try again later")
 	}
 
-	user, err := a.Authenticate(req.Username, req.Password)
+	user, err := a.Authenticate(req.id(), req.Password)
 	if err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
 			return echo.NewHTTPError(http.StatusUnauthorized, "invalid username or password")
@@ -154,6 +169,29 @@ func (a *Auth) handleMe(c echo.Context) error {
 		return err
 	}
 	return c.JSON(http.StatusOK, toUserDTO(user))
+}
+
+type updateProfileRequest struct {
+	Username *string `json:"username"`
+	Email    *string `json:"email"`
+}
+
+// handleUpdateProfile applies a self-service username/email change.
+func (a *Auth) handleUpdateProfile(c echo.Context) error {
+	user := CurrentUser(c)
+	var req updateProfileRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+	if req.Username == nil && req.Email == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "nothing to update")
+	}
+	updated, err := a.UpdateProfile(user.ID, ProfilePatch{Username: req.Username, Email: req.Email})
+	if err != nil {
+		return mapServiceError(err)
+	}
+	a.attachUser(c, updated)
+	return c.JSON(http.StatusOK, toUserDTO(updated))
 }
 
 type changePasswordRequest struct {

@@ -174,7 +174,7 @@ func (a *Auth) bootstrapInitAdmin() error {
 	if count > 0 {
 		return nil
 	}
-	user, err := a.CreateUser(a.cfg.InitAdminUsername, a.cfg.InitAdminPassword, RoleAdmin)
+	user, err := a.CreateUser(a.cfg.InitAdminUsername, a.cfg.InitAdminPassword, "", RoleAdmin)
 	if err != nil {
 		return err
 	}

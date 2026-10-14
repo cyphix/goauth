@@ -92,7 +92,7 @@ func TestOIDCLoginWithoutAutoProvision(t *testing.T) {
 
 	// Pre-linked users may log in.
 	sub := mock.Sub
-	user, err := env.auth.CreateUser("linked", "", RoleUser)
+	user, err := env.auth.CreateUser("linked", "", "", RoleUser)
 	require.NoError(t, err)
 	require.NoError(t, env.auth.DB().Model(user).Updates(map[string]any{"oidc_provider_id": providerID, "oidc_sub": sub}).Error)
 

@@ -74,6 +74,7 @@ func (a *Auth) handleAdminListUsers(c echo.Context) error {
 type adminCreateUserRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Email    string `json:"email"`
 	Role     Role   `json:"role"`
 }
 
@@ -85,7 +86,7 @@ func (a *Auth) handleAdminCreateUser(c echo.Context) error {
 	if req.Role == "" {
 		req.Role = RoleUser
 	}
-	user, err := a.CreateUser(req.Username, req.Password, req.Role)
+	user, err := a.CreateUser(req.Username, req.Password, req.Email, req.Role)
 	if err != nil {
 		return mapServiceError(err)
 	}
@@ -93,6 +94,8 @@ func (a *Auth) handleAdminCreateUser(c echo.Context) error {
 }
 
 type adminUpdateUserRequest struct {
+	Username *string `json:"username"`
+	Email    *string `json:"email"`
 	Role     *Role   `json:"role"`
 	Disabled *bool   `json:"disabled"`
 	Password *string `json:"password"`
@@ -107,7 +110,13 @@ func (a *Auth) handleAdminUpdateUser(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
-	user, err := a.UpdateUser(id, UserPatch{Role: req.Role, Disabled: req.Disabled, Password: req.Password})
+	user, err := a.UpdateUser(id, UserPatch{
+		Username: req.Username,
+		Email:    req.Email,
+		Role:     req.Role,
+		Disabled: req.Disabled,
+		Password: req.Password,
+	})
 	if err != nil {
 		return mapServiceError(err)
 	}

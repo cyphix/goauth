@@ -77,7 +77,7 @@ func TestLoginUsernameCaseInsensitive(t *testing.T) {
 
 func TestDisabledUserCannotLoginOrKeepSession(t *testing.T) {
 	env := newTestEnv(t, nil)
-	_, err := env.auth.CreateUser("bob", "bob-password-1", RoleUser)
+	_, err := env.auth.CreateUser("bob", "bob-password-1", "", RoleUser)
 	require.NoError(t, err)
 
 	client := env.client()
@@ -101,7 +101,7 @@ func TestDisabledUserCannotLoginOrKeepSession(t *testing.T) {
 
 func TestRequireRole(t *testing.T) {
 	env := newTestEnv(t, nil)
-	_, err := env.auth.CreateUser("carol", "carol-password-1", RoleUser)
+	_, err := env.auth.CreateUser("carol", "carol-password-1", "", RoleUser)
 	require.NoError(t, err)
 
 	userClient := env.client()

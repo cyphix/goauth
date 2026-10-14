@@ -42,6 +42,7 @@ export {
   usePasskeys,
   useUpdateAuthSettings,
   useUpdateOidcProvider,
+  useUpdateProfile,
 } from "./hooks.ts";
 export type {
   AuthConfig,
@@ -54,5 +55,6 @@ export type {
   OidcProviderPublic,
   Passkey,
   Role,
+  UpdateProfileInput,
   UpdateUserInput,
 } from "./types.ts";

@@ -225,6 +225,8 @@ func (a *Auth) handleOIDCCallback(c echo.Context) error {
 		Sub               string `json:"sub"`
 		PreferredUsername string `json:"preferred_username"`
 		Name              string `json:"name"`
+		Email             string `json:"email"`
+		EmailVerified     bool   `json:"email_verified"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
 		return a.oidcFailureRedirect(c, "invalid_claims")
@@ -233,7 +235,11 @@ func (a *Auth) handleOIDCCallback(c echo.Context) error {
 		return a.oidcFailureRedirect(c, "missing_subject")
 	}
 
-	user, err := a.resolveOIDCUser(&client.row, claims.Sub, claims.PreferredUsername, claims.Name)
+	email := ""
+	if claims.EmailVerified {
+		email = claims.Email
+	}
+	user, err := a.resolveOIDCUser(&client.row, claims.Sub, claims.PreferredUsername, claims.Name, email)
 	if err != nil {
 		a.logger.Warn().Err(err).Str("sub", claims.Sub).Msg("oidc user resolution failed")
 		return a.oidcFailureRedirect(c, "not_provisioned")
@@ -259,7 +265,7 @@ func (a *Auth) oidcFailureRedirect(c echo.Context, code string) error {
 
 // resolveOIDCUser finds the linked account for (provider, sub), provisioning
 // one when the provider allows it.
-func (a *Auth) resolveOIDCUser(provider *OIDCProvider, sub, preferredUsername, name string) (*User, error) {
+func (a *Auth) resolveOIDCUser(provider *OIDCProvider, sub, preferredUsername, name, email string) (*User, error) {
 	var user User
 	err := a.db.Where("oidc_provider_id = ? AND oidc_sub = ?", provider.ID, sub).First(&user).Error
 	if err == nil {
@@ -278,6 +284,14 @@ func (a *Auth) resolveOIDCUser(provider *OIDCProvider, sub, preferredUsername, n
 		Role:           RoleUser,
 		OIDCProviderID: &provider.ID,
 		OIDCSub:        &sub,
+	}
+	// Adopt the verified email claim when it is valid and unused; never
+	// fail a login over it.
+	if addr := NormalizeEmail(email); addr != "" && validateEmail(addr) == nil {
+		var taken int64
+		if a.db.Model(&User{}).Where("email = ?", addr).Count(&taken).Error == nil && taken == 0 {
+			created.Email = &addr
+		}
 	}
 	if err := a.db.Create(created).Error; err != nil {
 		return nil, err

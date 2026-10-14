@@ -68,7 +68,7 @@ func TestLastAdminProtections(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	// With a second admin, demotion works.
-	_, err = env.auth.CreateUser("admin2", "admin2-password-1", RoleAdmin)
+	_, err = env.auth.CreateUser("admin2", "admin2-password-1", "", RoleAdmin)
 	require.NoError(t, err)
 	resp = env.doJSON(admin, http.MethodPatch, fmt.Sprintf("/auth/admin/users/%d", adminUser.ID), adminUpdateUserRequest{Role: &role}, nil)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)

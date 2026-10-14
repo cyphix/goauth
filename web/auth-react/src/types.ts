@@ -5,12 +5,14 @@ export type OidcMode = "disabled" | "optional" | "required";
 export interface AuthUser {
   id: number;
   username: string;
+  email: string | null;
   role: Role;
   disabled: boolean;
   hasPassword: boolean;
   passkeyCount: number;
   oidcLinked: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface OidcProviderPublic {
@@ -62,11 +64,19 @@ export interface AuthSettings {
 export interface CreateUserInput {
   username: string;
   password?: string;
+  email?: string;
   role?: Role;
 }
 
 export interface UpdateUserInput {
+  username?: string;
+  email?: string;
   role?: Role;
   disabled?: boolean;
   password?: string;
+}
+
+export interface UpdateProfileInput {
+  username?: string;
+  email?: string;
 }
