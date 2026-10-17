@@ -16,8 +16,10 @@ export {
 } from "./components/UserManagementPanel.tsx";
 export {
   requireAuthBeforeLoad,
+  requireGuestBeforeLoad,
   type RequireAuthContext,
   type RequireAuthOptions,
+  type RequireGuestOptions,
 } from "./guard.ts";
 export {
   AuthClientContext,

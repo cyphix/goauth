@@ -66,3 +66,66 @@ export function requireAuthBeforeLoad(options: RequireAuthOptions = {}) {
     throw redirect(options as never);
   };
 }
+
+export interface RequireGuestOptions {
+  client?: AuthClient;
+  /** SPA route of the login page — ?redirect= targets under it are rejected (loop guard). Default "/login". */
+  loginPath?: string;
+  /** Where authenticated users go when ?redirect= is absent or invalid. Default "/". */
+  fallbackPath?: string;
+  /** Search param carrying the post-login target. Default "redirect". */
+  redirectParam?: string;
+}
+
+/**
+ * TanStack Router `beforeLoad` guard for guest-only routes (the login page).
+ *
+ * Resolution order:
+ * 1. No session -> render the route.
+ * 2. Existing session -> redirect to the `?redirect=` search param when it is
+ *    a same-site path outside the login page, otherwise to `fallbackPath`.
+ *
+ * Deliberately does not trigger dev auto-login or OIDC-required redirects:
+ * unauthenticated users must be able to reach the login page (e.g. to sign in
+ * as a different user after logout).
+ */
+export function requireGuestBeforeLoad(options: RequireGuestOptions = {}) {
+  const client = options.client ?? defaultAuthClient;
+  const loginPath = options.loginPath ?? "/login";
+  const fallbackPath = options.fallbackPath ?? "/";
+  const redirectParam = options.redirectParam ?? "redirect";
+
+  return async ({
+    search,
+  }: {
+    search: Record<string, unknown>;
+  }): Promise<void> => {
+    const user = await client.me();
+    if (!user) {
+      return;
+    }
+    const raw = search[redirectParam];
+    const target = typeof raw === "string" ? raw : undefined;
+    throw redirect({ to: safeGuestTarget(target, loginPath, fallbackPath) } as never);
+  };
+}
+
+// safeGuestTarget only allows same-site absolute paths outside the login page
+// itself — same rules as the backend's safeNextPath for post-login redirects.
+function safeGuestTarget(
+  target: string | undefined,
+  loginPath: string,
+  fallbackPath: string
+): string {
+  if (
+    !target ||
+    !target.startsWith("/") ||
+    target.startsWith("//") ||
+    target === loginPath ||
+    target.startsWith(`${loginPath}/`) ||
+    target.startsWith(`${loginPath}?`)
+  ) {
+    return fallbackPath;
+  }
+  return target;
+}
