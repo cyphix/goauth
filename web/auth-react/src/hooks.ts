@@ -1,4 +1,5 @@
 import {
+  queryOptions,
   useMutation,
   useQuery,
   useQueryClient,
@@ -39,14 +40,17 @@ export function useAuthConfig() {
   });
 }
 
-export function useMe() {
-  const client = useAuthClient();
-  return useQuery({
+export const meQueryOptions = (client: AuthClient) =>
+  queryOptions({
     queryKey: authQueryKeys.me,
     queryFn: () => client.me(),
     staleTime: 60_000,
     retry: false,
   });
+
+export function useMe() {
+  const client = useAuthClient();
+  return useQuery(meQueryOptions(client));
 }
 
 function useInvalidateSession() {

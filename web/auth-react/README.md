@@ -33,6 +33,17 @@ export const Route = createFileRoute("/_app")({
   beforeLoad: requireAuthBeforeLoad({ loginPath: "/login" }),
   component: Layout,
 });
+```
+
+Both guards (`requireAuthBeforeLoad` / `requireGuestBeforeLoad`) resolve the
+session through the TanStack Query cache (`authQueryKeys.me`, 60 s staleTime)
+when a `QueryClient` is passed via the `queryClient` option or is present in
+the router context (e.g. `createRootRouteWithContext<{ queryClient: QueryClient }>()`).
+Otherwise each call fetches `/me` fresh. Trade-off: with caching, a
+server-side session expiry is noticed by the guard up to 60 s late (API 401s
+still enforce it immediately).
+
+```tsx
 
 // Session hooks:
 const { data: me } = useMe();

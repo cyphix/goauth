@@ -1,12 +1,40 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
 
 import { AuthClient, defaultAuthClient } from "./client.ts";
+import { authQueryKeys, meQueryOptions } from "./hooks.ts";
 import type { AuthUser } from "./types.ts";
+
+function resolveQueryClient(
+  explicit: QueryClient | undefined,
+  context: unknown
+): QueryClient | undefined {
+  if (explicit) return explicit;
+  const candidate = (context as { queryClient?: unknown } | undefined)
+    ?.queryClient;
+  return candidate && typeof (candidate as QueryClient).fetchQuery === "function"
+    ? (candidate as QueryClient)
+    : undefined;
+}
+
+function loadMe(
+  client: AuthClient,
+  qc: QueryClient | undefined
+): Promise<AuthUser | null> {
+  return qc ? qc.fetchQuery(meQueryOptions(client)) : client.me();
+}
 
 export interface RequireAuthOptions {
   client?: AuthClient;
   /** SPA route of the login page. Default "/login". */
   loginPath?: string;
+  /**
+   * Resolve the session through this QueryClient's cache (`authQueryKeys.me`,
+   * 60 s staleTime) instead of a fresh GET /me per call. When omitted, a
+   * `queryClient` found in the TanStack Router route context is used;
+   * otherwise every call fetches.
+   */
+  queryClient?: QueryClient;
 }
 
 export interface RequireAuthContext {
@@ -29,10 +57,13 @@ export function requireAuthBeforeLoad(options: RequireAuthOptions = {}) {
 
   return async ({
     location,
+    context,
   }: {
     location: { href: string };
+    context?: unknown;
   }): Promise<RequireAuthContext> => {
-    const user = await client.me();
+    const qc = resolveQueryClient(options.queryClient, context);
+    const user = await loadMe(client, qc);
     if (user) {
       return { user };
     }
@@ -42,6 +73,7 @@ export function requireAuthBeforeLoad(options: RequireAuthOptions = {}) {
     if (config.devAutoLogin) {
       try {
         const devUser = await client.devLogin();
+        qc?.setQueryData(authQueryKeys.me, devUser);
         return { user: devUser };
       } catch {
         // fall through to the regular flows
@@ -59,11 +91,11 @@ export function requireAuthBeforeLoad(options: RequireAuthOptions = {}) {
 
     // loginPath is dynamic, so this cannot be statically typed against the
     // consumer's route tree.
-    const options = {
+    const target = {
       to: loginPath,
       search: { redirect: location.href },
     };
-    throw redirect(options as never);
+    throw redirect(target as never);
   };
 }
 
@@ -75,6 +107,13 @@ export interface RequireGuestOptions {
   fallbackPath?: string;
   /** Search param carrying the post-login target. Default "redirect". */
   redirectParam?: string;
+  /**
+   * Resolve the session through this QueryClient's cache (`authQueryKeys.me`,
+   * 60 s staleTime) instead of a fresh GET /me per call. When omitted, a
+   * `queryClient` found in the TanStack Router route context is used;
+   * otherwise every call fetches.
+   */
+  queryClient?: QueryClient;
 }
 
 /**
@@ -97,10 +136,13 @@ export function requireGuestBeforeLoad(options: RequireGuestOptions = {}) {
 
   return async ({
     search,
+    context,
   }: {
     search: Record<string, unknown>;
+    context?: unknown;
   }): Promise<void> => {
-    const user = await client.me();
+    const qc = resolveQueryClient(options.queryClient, context);
+    const user = await loadMe(client, qc);
     if (!user) {
       return;
     }

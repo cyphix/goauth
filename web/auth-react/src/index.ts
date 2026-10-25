@@ -24,6 +24,7 @@ export {
 export {
   AuthClientContext,
   authQueryKeys,
+  meQueryOptions,
   useAdminCreateUser,
   useAdminDeleteUser,
   useAdminUpdateUser,
