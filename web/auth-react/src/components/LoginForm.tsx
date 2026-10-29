@@ -26,6 +26,9 @@ export interface LoginFormProps {
   className?: string;
 }
 
+/** How long a config load or OIDC redirect may take before it is flagged. */
+const HANG_WARNING_MS = 10_000;
+
 /**
  * Complete login page body driven by GET /auth/config:
  * - username/password form (when local login is allowed)
@@ -36,7 +39,14 @@ export interface LoginFormProps {
  */
 export function LoginForm({ onSuccess, next = "/", className }: LoginFormProps) {
   const client = useAuthClient();
-  const { data: config, isLoading } = useAuthConfig();
+  const {
+    data: config,
+    isLoading,
+    isError,
+    error,
+    isRefetching,
+    refetch,
+  } = useAuthConfig();
   const login = useLogin();
   const passkeyLogin = usePasskeyLogin();
 
@@ -55,21 +65,85 @@ export function LoginForm({ onSuccess, next = "/", className }: LoginFormProps) 
   const exclusive = config?.oidcMode === "required";
   const firstProvider = config?.oidcProviders[0];
 
+  // Flag a config request that stays pending — e.g. the auth server is down
+  // or a proxy target accepts connections without responding.
+  const [configTimedOut, setConfigTimedOut] = useState(false);
+  useEffect(() => {
+    if (!isLoading) {
+      setConfigTimedOut(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setConfigTimedOut(true), HANG_WARNING_MS);
+    return () => window.clearTimeout(timer);
+  }, [isLoading]);
+
+  // Flag an OIDC redirect that leaves the browser on this page — e.g. the
+  // provider start endpoint is hanging instead of returning a redirect.
+  const [redirectTimedOut, setRedirectTimedOut] = useState(false);
+
   // Exclusive mode: bypass the local login page entirely.
   useEffect(() => {
-    if (exclusive && firstProvider && !oidcError) {
-      window.location.assign(client.oidcStartUrl(firstProvider.id, next));
+    if (!(exclusive && firstProvider) || oidcError) {
+      return;
     }
+    window.location.assign(client.oidcStartUrl(firstProvider.id, next));
+    const timer = window.setTimeout(() => setRedirectTimedOut(true), HANG_WARNING_MS);
+    return () => window.clearTimeout(timer);
   }, [exclusive, firstProvider, oidcError, client, next]);
 
+  if (isError) {
+    return (
+      <div className={cx("goauth-login", className)}>
+        <div className="goauth-error">
+          Could not load sign-in options: {error.message}. Check that the auth
+          server is running and reachable.
+        </div>
+        <button
+          className="goauth-button goauth-button-primary"
+          disabled={isRefetching}
+          onClick={() => refetch()}
+          type="button"
+        >
+          {isRefetching ? "Retrying…" : "Retry"}
+        </button>
+      </div>
+    );
+  }
+
   if (isLoading || !config) {
-    return <div className={cx("goauth-login", className)} />;
+    return (
+      <div className={cx("goauth-login", className)}>
+        <p className="goauth-muted">Loading sign-in options…</p>
+        {configTimedOut ? (
+          <div className="goauth-error">
+            The server is not responding. Check that the auth server is
+            running and that any dev proxy target matches its port.
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   if (exclusive && !oidcError) {
     return (
       <div className={cx("goauth-login", className)}>
         <p className="goauth-muted">Redirecting to {firstProvider?.name ?? "your identity provider"}…</p>
+        {redirectTimedOut ? (
+          <>
+            <div className="goauth-error">
+              The sign-in redirect is taking longer than expected — the
+              identity provider may be unreachable.
+            </div>
+            {firstProvider ? (
+              <a
+                className="goauth-button goauth-button-oidc"
+                href={client.oidcStartUrl(firstProvider.id, next)}
+              >
+                Try again
+              </a>
+            ) : null}
+          </>
+        ) : null}
       </div>
     );
   }

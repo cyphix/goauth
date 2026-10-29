@@ -20,17 +20,33 @@ export class AuthApiError extends Error {
   }
 }
 
+/** Ceiling on a single request so a wedged endpoint errors out instead of
+ * leaving callers (e.g. the login page) pending forever. */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function request<T>(
   method: string,
   path: string,
   body?: unknown
 ): Promise<T> {
-  const response = await fetch(path, {
-    method,
-    credentials: "same-origin",
-    headers: body === undefined ? {} : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method,
+      credentials: "same-origin",
+      headers: body === undefined ? {} : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new AuthApiError(
+        0,
+        `request to ${path} timed out after ${REQUEST_TIMEOUT_MS / 1000}s`
+      );
+    }
+    throw error;
+  }
   if (!response.ok) {
     let message = response.statusText || `request failed (${response.status})`;
     try {
