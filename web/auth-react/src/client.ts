@@ -24,22 +24,46 @@ export class AuthApiError extends Error {
  * leaving callers (e.g. the login page) pending forever. */
 const REQUEST_TIMEOUT_MS = 30_000;
 
+// AbortSignal.timeout rejects with a TimeoutError DOMException — fetch's
+// signal also covers response body reads, so a stalled body surfaces here too.
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "TimeoutError";
+}
+
 async function request<T>(
   method: string,
   path: string,
   body?: unknown
 ): Promise<T> {
-  let response: Response;
   try {
-    response = await fetch(path, {
+    const response = await fetch(path, {
       method,
       credentials: "same-origin",
       headers: body === undefined ? {} : { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+    if (!response.ok) {
+      let message = response.statusText || `request failed (${response.status})`;
+      try {
+        const payload = (await response.json()) as { message?: string };
+        if (payload.message) {
+          message = payload.message;
+        }
+      } catch (error) {
+        if (isTimeoutError(error)) {
+          throw error;
+        }
+        // non-JSON error body
+      }
+      throw new AuthApiError(response.status, message);
+    }
+    if (response.status === 204) {
+      return undefined as T;
+    }
+    return (await response.json()) as T;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "TimeoutError") {
+    if (isTimeoutError(error)) {
       throw new AuthApiError(
         0,
         `request to ${path} timed out after ${REQUEST_TIMEOUT_MS / 1000}s`
@@ -47,22 +71,6 @@ async function request<T>(
     }
     throw error;
   }
-  if (!response.ok) {
-    let message = response.statusText || `request failed (${response.status})`;
-    try {
-      const payload = (await response.json()) as { message?: string };
-      if (payload.message) {
-        message = payload.message;
-      }
-    } catch {
-      // non-JSON error body
-    }
-    throw new AuthApiError(response.status, message);
-  }
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  return (await response.json()) as T;
 }
 
 /**
