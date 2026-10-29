@@ -24,10 +24,15 @@ export class AuthApiError extends Error {
  * leaving callers (e.g. the login page) pending forever. */
 const REQUEST_TIMEOUT_MS = 30_000;
 
-// AbortSignal.timeout rejects with a TimeoutError DOMException — fetch's
-// signal also covers response body reads, so a stalled body surfaces here too.
+// AbortSignal.timeout rejects with a TimeoutError DOMException on the fetch
+// itself, but browsers may reject a stalled response body read with AbortError
+// instead. The timeout signal is the only abort source here, so treat both
+// names as the request timing out.
 function isTimeoutError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "TimeoutError";
+  return (
+    error instanceof DOMException &&
+    (error.name === "TimeoutError" || error.name === "AbortError")
+  );
 }
 
 async function request<T>(
