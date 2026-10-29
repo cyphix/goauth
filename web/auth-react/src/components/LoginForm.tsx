@@ -91,7 +91,7 @@ export function LoginForm({ onSuccess, next = "/", className }: LoginFormProps) 
     return () => window.clearTimeout(timer);
   }, [exclusive, firstProvider, oidcError, client, next]);
 
-  if (isError) {
+  if (isError && !config) {
     return (
       <div className={cx("goauth-login", className)}>
         <div className="goauth-error">
