@@ -111,6 +111,7 @@ func (a *Auth) handlePasskeyRegisterBegin(c echo.Context) error {
 			ResidentKey:      protocol.ResidentKeyRequirementRequired,
 			UserVerification: protocol.VerificationPreferred,
 		}),
+		webauthn.WithExtensions(webauthn.WithExtensionCredProps()),
 	)
 	if err != nil {
 		return err

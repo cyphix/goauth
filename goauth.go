@@ -20,6 +20,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	redisstore "github.com/cyphix/godatabases/redis"
 	logg "github.com/cyphix/gologg"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
@@ -137,6 +138,9 @@ func New(cfg Config) (*Auth, error) {
 			RPDisplayName: defaultString(cfg.RPDisplayName, cfg.RPID),
 			RPID:          cfg.RPID,
 			RPOrigins:     cfg.Origins,
+			// Clients and passkey managers attach extension outputs nobody asked
+			// for; goauth consumes none of them, so they must not fail a ceremony.
+			ExtensionsUnsolicitedOutputPolicy: protocol.UnsolicitedOutputPolicyIgnore,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("goauth: webauthn config: %w", err)
