@@ -194,7 +194,10 @@ func (a *Auth) SetPassword(userID uint, password string) error {
 	if err != nil {
 		return err
 	}
-	return a.db.Model(&User{}).Where("id = ?", userID).Update("password_hash", hash).Error
+	return a.db.Model(&User{}).Where("id = ?", userID).Updates(map[string]any{
+		"password_hash":   hash,
+		"session_version": gorm.Expr("session_version + 1"),
+	}).Error
 }
 
 // ChangePassword verifies the current password before setting a new one.
@@ -293,6 +296,9 @@ func (a *Auth) UpdateUser(id uint, patch UserPatch) (*User, error) {
 			return nil, err
 		}
 		updates["password_hash"] = hash
+	}
+	if patch.Password != nil || (patch.Role != nil && *patch.Role != user.Role) || disabling {
+		updates["session_version"] = gorm.Expr("session_version + 1")
 	}
 	if len(updates) > 0 {
 		if err := a.db.Model(user).Updates(updates).Error; err != nil {

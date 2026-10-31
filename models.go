@@ -41,13 +41,14 @@ func ValidOIDCMode(m OIDCMode) bool {
 // User is an account managed by goauth.
 type User struct {
 	gorm.Model
-	Username     string  `gorm:"uniqueIndex:idx_auth_users_username_active,where:deleted_at IS NULL;not null"`
+	Username string `gorm:"uniqueIndex:idx_auth_users_username_active,where:deleted_at IS NULL;not null"`
 	// Email is an optional, normalized login identifier. NULL means unset;
 	// uniqueness holds among active users only.
-	Email        *string `gorm:"uniqueIndex:idx_auth_users_email_active,where:deleted_at IS NULL"`
-	PasswordHash *string `gorm:"type:text"`
-	Role         Role    `gorm:"type:varchar(16);not null;default:user"`
-	Disabled     bool    `gorm:"not null;default:false"`
+	Email          *string `gorm:"uniqueIndex:idx_auth_users_email_active,where:deleted_at IS NULL"`
+	PasswordHash   *string `gorm:"type:text"`
+	Role           Role    `gorm:"type:varchar(16);not null;default:user"`
+	Disabled       bool    `gorm:"not null;default:false"`
+	SessionVersion int     `gorm:"not null;default:0"` // bumped to revoke all existing sessions of the user
 
 	// OIDC identity link (set when the account was provisioned by or linked
 	// to an OIDC provider).

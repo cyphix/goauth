@@ -47,6 +47,95 @@ func TestAdminUserCRUD(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
+func TestAdminPasswordResetRevokesSessions(t *testing.T) {
+	env := newTestEnv(t, nil)
+	bob, err := env.auth.CreateUser("bob", "bob-password-1", "", RoleUser)
+	require.NoError(t, err)
+	client := env.client()
+	env.login(client, "bob", "bob-password-1")
+	admin := env.adminClient()
+
+	newPassword := "bob-password-2"
+	resp := env.doJSON(admin, http.MethodPatch, fmt.Sprintf("/auth/admin/users/%d", bob.ID), adminUpdateUserRequest{
+		Password: &newPassword,
+	}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	resp = env.doJSON(client, http.MethodGet, "/auth/me", nil, nil)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	fresh := env.client()
+	env.login(fresh, "bob", newPassword)
+	resp = env.doJSON(fresh, http.MethodGet, "/auth/me", nil, nil)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestRoleChangeRevokesSessions(t *testing.T) {
+	env := newTestEnv(t, nil)
+	bob, err := env.auth.CreateUser("bob", "bob-password-1", "", RoleUser)
+	require.NoError(t, err)
+	carol, err := env.auth.CreateUser("carol", "carol-password-1", "", RoleUser)
+	require.NoError(t, err)
+	bobClient, carolClient := env.client(), env.client()
+	env.login(bobClient, "bob", "bob-password-1")
+	env.login(carolClient, "carol", "carol-password-1")
+	admin := env.adminClient()
+
+	adminRole := RoleAdmin
+	resp := env.doJSON(admin, http.MethodPatch, fmt.Sprintf("/auth/admin/users/%d", bob.ID), adminUpdateUserRequest{
+		Role: &adminRole,
+	}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	resp = env.doJSON(bobClient, http.MethodGet, "/auth/me", nil, nil)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	userRole := RoleUser
+	resp = env.doJSON(admin, http.MethodPatch, fmt.Sprintf("/auth/admin/users/%d", carol.ID), adminUpdateUserRequest{
+		Role: &userRole,
+	}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	resp = env.doJSON(carolClient, http.MethodGet, "/auth/me", nil, nil)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestDisableReenableDoesNotReviveSession(t *testing.T) {
+	env := newTestEnv(t, nil)
+	bob, err := env.auth.CreateUser("bob", "bob-password-1", "", RoleUser)
+	require.NoError(t, err)
+	client := env.client()
+	env.login(client, "bob", "bob-password-1")
+
+	disabled := true
+	_, err = env.auth.UpdateUser(bob.ID, UserPatch{Disabled: &disabled})
+	require.NoError(t, err)
+	disabled = false
+	_, err = env.auth.UpdateUser(bob.ID, UserPatch{Disabled: &disabled})
+	require.NoError(t, err)
+	resp := env.doJSON(client, http.MethodGet, "/auth/me", nil, nil)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	fresh := env.client()
+	env.login(fresh, "bob", "bob-password-1")
+	resp = env.doJSON(fresh, http.MethodGet, "/auth/me", nil, nil)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestAdminSelfPasswordResetKeepsCurrentSession(t *testing.T) {
+	env := newTestEnv(t, nil)
+	clientX, clientY := env.adminClient(), env.adminClient()
+	admin, err := env.auth.FindUserByUsername("admin")
+	require.NoError(t, err)
+
+	newPassword := "admin-password-2"
+	resp := env.doJSON(clientX, http.MethodPatch, fmt.Sprintf("/auth/admin/users/%d", admin.ID), adminUpdateUserRequest{
+		Password: &newPassword,
+	}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	resp = env.doJSON(clientX, http.MethodGet, "/auth/me", nil, nil)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	resp = env.doJSON(clientY, http.MethodGet, "/auth/me", nil, nil)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
 func TestLastAdminProtections(t *testing.T) {
 	env := newTestEnv(t, nil)
 	admin := env.adminClient()

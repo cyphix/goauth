@@ -2,6 +2,7 @@ package goauth
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -136,6 +137,61 @@ func TestChangePassword(t *testing.T) {
 	resp = env.doJSON(fresh, http.MethodPost, "/auth/login", loginRequest{Username: "admin", Password: "admin-password-1"}, nil)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	env.login(fresh, "admin", "new-password-12")
+}
+
+func TestSetPasswordIncrementsSessionVersion(t *testing.T) {
+	env := newTestEnv(t, nil)
+	user, err := env.auth.CreateUser("bob", "bob-password-1", "", RoleUser)
+	require.NoError(t, err)
+	before, err := env.auth.FindUserByID(user.ID)
+	require.NoError(t, err)
+
+	require.NoError(t, env.auth.SetPassword(user.ID, "bob-password-2"))
+	after, err := env.auth.FindUserByID(user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, before.SessionVersion+1, after.SessionVersion)
+}
+
+func TestChangePasswordRevokesOtherSessions(t *testing.T) {
+	env := newTestEnv(t, nil)
+	_, err := env.auth.CreateUser("bob", "bob-password-1", "", RoleUser)
+	require.NoError(t, err)
+	clientA, clientB := env.client(), env.client()
+	env.login(clientA, "bob", "bob-password-1")
+	env.login(clientB, "bob", "bob-password-1")
+	serverURL, err := url.Parse(env.server.URL)
+	require.NoError(t, err)
+
+	var oldCookie string
+	for _, cookie := range clientA.Jar.Cookies(serverURL) {
+		if cookie.Name == env.auth.cfg.CookieName {
+			oldCookie = cookie.Value
+			break
+		}
+	}
+	require.NotEmpty(t, oldCookie)
+
+	resp := env.doJSON(clientA, http.MethodPost, "/auth/password", changePasswordRequest{
+		CurrentPassword: "bob-password-1",
+		NewPassword:     "bob-password-2",
+	}, nil)
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+	resp = env.doJSON(clientA, http.MethodGet, "/auth/me", nil, nil)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	resp = env.doJSON(clientB, http.MethodGet, "/auth/me", nil, nil)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	resp = env.doJSON(clientB, http.MethodGet, "/protected", nil, nil)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	var newCookie string
+	for _, cookie := range clientA.Jar.Cookies(serverURL) {
+		if cookie.Name == env.auth.cfg.CookieName {
+			newCookie = cookie.Value
+			break
+		}
+	}
+	require.NotEmpty(t, newCookie)
+	assert.NotEqual(t, oldCookie, newCookie)
 }
 
 func TestLoginThrottle(t *testing.T) {

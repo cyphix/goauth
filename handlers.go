@@ -211,6 +211,14 @@ func (a *Auth) handleChangePassword(c echo.Context) error {
 		}
 		return mapServiceError(err)
 	}
+	updated, err := a.FindUserByID(user.ID)
+	if err != nil {
+		return err
+	}
+	if err := a.createSession(c, updated); err != nil {
+		return err
+	}
+	a.attachUser(c, updated)
 	return c.NoContent(http.StatusNoContent)
 }
 
