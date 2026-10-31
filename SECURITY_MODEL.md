@@ -50,7 +50,7 @@ Three Go libraries. Five apps vendor them as git submodules under `pkg/`, wired 
 Admins are trusted to run the admin API. They were not listed as an attacker.
 
 ## Existing controls
-- Origin-header CSRF check on unsafe methods (`session.go` `originCheckMiddleware`). Requests with no Origin header, or with `Origin: null`, pass. The session cookie is `HttpOnly` and `SameSite=Lax`.
+- Origin-header CSRF check on unsafe methods (`session.go` `originCheckMiddleware`): `Origin: null` is rejected; a missing Origin falls back to `Sec-Fetch-Site` (`same-origin`/`none`) or an allowed `Referer`, and passes when neither is present. Login also requires `application/json`. The session cookie is `HttpOnly` and `SameSite=Lax`.
 - The session token is renewed on login (`createSession` → `RenewToken`), and logout destroys the session.
 - Disabled users are rejected on every session load. The last active admin cannot be disabled or demoted (`isLastActiveAdmin`).
 - Login throttle: 10 attempts per 5 minutes, keyed by `username:RealIP`, in Redis. Its accuracy depends on how the host app's Echo `IPExtractor` reads proxy headers.
