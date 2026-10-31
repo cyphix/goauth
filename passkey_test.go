@@ -122,6 +122,11 @@ func (s *softAuthenticator) register(beginOptions []byte) []byte {
 			"clientDataJSON":    base64.RawURLEncoding.EncodeToString(s.clientData("webauthn.create", options.PublicKey.Challenge)),
 			"attestationObject": base64.RawURLEncoding.EncodeToString(attObj),
 		},
+		// Browsers report credProps for resident-key registrations whether or
+		// not the RP asked for it.
+		"clientExtensionResults": map[string]any{
+			"credProps": map[string]any{"rk": true},
+		},
 	})
 	require.NoError(s.t, err)
 	return body
@@ -155,6 +160,10 @@ func (s *softAuthenticator) assert(beginOptions []byte) []byte {
 			"authenticatorData": base64.RawURLEncoding.EncodeToString(authData),
 			"signature":         base64.RawURLEncoding.EncodeToString(sig),
 			"userHandle":        base64.RawURLEncoding.EncodeToString(s.userHandle),
+		},
+		// An output the RP never requested, as some passkey managers send.
+		"clientExtensionResults": map[string]any{
+			"unrequestedExample": true,
 		},
 	})
 	require.NoError(s.t, err)
