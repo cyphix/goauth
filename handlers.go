@@ -125,8 +125,8 @@ func (a *Auth) handleLogin(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "username and password are required")
 	}
 
-	throttleKey := NormalizeUsername(req.id()) + ":" + c.RealIP()
-	allowed, err := a.throttleAllow(c.Request().Context(), throttleKey)
+	t := newLoginThrottle(req.id(), a.cfg.ClientIP(c.Request()))
+	allowed, err := a.loginThrottleAllow(c.Request().Context(), t)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (a *Auth) handleLogin(c echo.Context) error {
 		}
 		return err
 	}
-	a.throttleReset(c.Request().Context(), throttleKey)
+	a.throttleReset(c.Request().Context(), t.accountIP)
 
 	if err := a.createSession(c, user); err != nil {
 		return err

@@ -53,7 +53,7 @@ Admins are trusted to run the admin API. They were not listed as an attacker.
 - Origin-header CSRF check on unsafe methods (`session.go` `originCheckMiddleware`). Requests with no Origin header, or with `Origin: null`, pass. The session cookie is `HttpOnly` and `SameSite=Lax`.
 - The session token is renewed on login (`createSession` → `RenewToken`), and logout destroys the session.
 - Disabled users are rejected on every session load. The last active admin cannot be disabled or demoted (`isLastActiveAdmin`).
-- Login throttle: 10 attempts per 5 minutes, keyed by `username:RealIP`, in Redis. Its accuracy depends on how the host app's Echo `IPExtractor` reads proxy headers.
+- Login throttle: three Redis counters with a 5-minute window — 10 attempts per account + client IP, 30 per account across IPs, and 100 per client IP across accounts. Keys use `Config.ClientIP`, which defaults to the TCP peer address; X-Forwarded-For / X-Real-IP are ignored unless a trusted extractor is configured.
 - OIDC: state, nonce and PKCE S256 checks, ID-token verification bound to the ClientID, `email_verified` required before an email is adopted, and `safeNextPath` blocks `//` and absolute URLs. Auto-provisioning is off unless enabled per provider.
 - Passkeys: discoverable login, the clone-warning check, and user-scoped credential deletion.
 - Secret scanning: BetterLeaks runs in CI and as a pre-push hook in goauth.
@@ -65,5 +65,5 @@ Admins are trusted to run the admin API. They were not listed as an attacker.
 
 ## Open questions
 - Is the Redis instance always on a private network, and is `REDIS_PASSWORD` set in the public deployments?
-- Do the public deployments run behind a reverse proxy, and is Echo's `IPExtractor` configured for it? This decides whether the login throttle can be bypassed with a spoofed `X-Forwarded-For`.
+- Do proxied deployments configure `Config.ClientIP` with a trusted extractor?
 - Is OIDC auto-provisioning enabled in any deployment?

@@ -60,6 +60,7 @@ a, err := goauth.New(goauth.Config{
     Origins:           []string{"http://localhost:5173"},  // browser origins: WebAuthn + Origin CSRF check
     PublicBaseURL:     "http://localhost:5173", // used for the OIDC redirect URL
     CookieSecure:      false,         // true behind HTTPS
+    ClientIP:          nil,           // defaults to TCP peer; configure trusted proxy extraction if needed
     InitAdminUsername: os.Getenv("AUTH_INIT_ADMIN_USERNAME"),
     InitAdminPassword: os.Getenv("AUTH_INIT_ADMIN_PASSWD"),
     DevAutoLogin:      isDev, // NEVER outside development
@@ -68,6 +69,13 @@ if err != nil {
     log.Fatal(err)
 }
 ```
+
+Login throttling defaults to the TCP peer address, ignoring forwarded headers. If
+the app runs behind a reverse proxy, configure a trusted extractor such as
+`echo.ExtractIPFromXFFHeader(echo.TrustIPRange(...))`; otherwise all clients share
+the proxy's per-IP bucket and can lock each other out. The limits are 10 attempts
+per account and client IP, 30 per account across all IPs, and 100 per client IP
+across all accounts, each within five minutes.
 
 **3. Mount it on Echo.** The session middleware must be global (it also
 performs the Origin CSRF check); routes mount under a group of your choice

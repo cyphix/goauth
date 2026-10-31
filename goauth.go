@@ -22,6 +22,7 @@ import (
 	logg "github.com/cyphix/gologg"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"gorm.io/gorm"
@@ -64,7 +65,13 @@ type Config struct {
 
 	CookieName string
 	// CookieSecure marks the session cookie Secure (HTTPS-only deployments).
-	CookieSecure    bool
+	CookieSecure bool
+	// ClientIP extracts the client IP used to key login throttling. Defaults to
+	// echo.ExtractIPDirect() (the TCP peer address), which ignores client-supplied
+	// X-Forwarded-For / X-Real-IP headers. Behind a reverse proxy, set a trusted
+	// extractor such as echo.ExtractIPFromXFFHeader(echo.TrustIPRange(proxyNet));
+	// otherwise every client shares the proxy's address.
+	ClientIP        echo.IPExtractor
 	SessionLifetime time.Duration
 
 	// InitAdminUsername / InitAdminPassword bootstrap the very first admin
@@ -107,6 +114,9 @@ func New(cfg Config) (*Auth, error) {
 	}
 	if cfg.MountPath == "" {
 		cfg.MountPath = DefaultMountPath
+	}
+	if cfg.ClientIP == nil {
+		cfg.ClientIP = echo.ExtractIPDirect()
 	}
 	cfg.MountPath = "/" + strings.Trim(cfg.MountPath, "/")
 	cfg.PublicBaseURL = strings.TrimRight(cfg.PublicBaseURL, "/")

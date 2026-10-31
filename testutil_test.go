@@ -141,6 +141,10 @@ func (env *testEnv) url(path string) string { return env.server.URL + path }
 // doJSON issues a JSON request and decodes the response body into out (when
 // non-nil). It returns the raw response for status assertions.
 func (env *testEnv) doJSON(client *http.Client, method, path string, body any, out any) *http.Response {
+	return env.doJSONWithHeaders(client, method, path, body, out, nil)
+}
+
+func (env *testEnv) doJSONWithHeaders(client *http.Client, method, path string, body any, out any, headers map[string]string) *http.Response {
 	env.t.Helper()
 	var reader io.Reader
 	if body != nil {
@@ -152,6 +156,9 @@ func (env *testEnv) doJSON(client *http.Client, method, path string, body any, o
 	require.NoError(env.t, err)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for name, value := range headers {
+		req.Header.Set(name, value)
 	}
 	resp, err := client.Do(req)
 	require.NoError(env.t, err)

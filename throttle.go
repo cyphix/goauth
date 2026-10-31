@@ -6,16 +6,18 @@ import (
 )
 
 const (
-	throttlePrefix      = "goauth:throttle:"
-	throttleMaxAttempts = 10
-	throttleWindow      = 5 * time.Minute
+	throttlePrefix             = "goauth:throttle:"
+	throttleWindow             = 5 * time.Minute
+	throttleMaxAttempts        = 10
+	throttleAccountMaxAttempts = 30
+	throttleIPMaxAttempts      = 100
 )
 
 // throttleAllow records a login attempt for key and reports whether the
 // attempt may proceed. Redis failures are surfaced (fail closed would lock
 // everyone out on a Redis blip; fail open would defeat the throttle — we
 // return the error and let the request fail loudly instead).
-func (a *Auth) throttleAllow(ctx context.Context, key string) (bool, error) {
+func (a *Auth) throttleAllow(ctx context.Context, key string, max int64) (bool, error) {
 	redisKey := throttlePrefix + key
 	count, err := a.redis.Incr(ctx, redisKey).Result()
 	if err != nil {
@@ -26,7 +28,30 @@ func (a *Auth) throttleAllow(ctx context.Context, key string) (bool, error) {
 			return false, err
 		}
 	}
-	return count <= throttleMaxAttempts, nil
+	return count <= max, nil
+}
+
+type loginThrottle struct{ ip, account, accountIP string }
+
+func newLoginThrottle(identifier, ip string) loginThrottle {
+	account := NormalizeUsername(identifier)
+	return loginThrottle{
+		ip:        "ip:" + ip,
+		account:   "acct:" + account,
+		accountIP: "acctip:" + ip + "|" + account,
+	}
+}
+
+func (a *Auth) loginThrottleAllow(ctx context.Context, t loginThrottle) (bool, error) {
+	allowed, err := a.throttleAllow(ctx, t.ip, throttleIPMaxAttempts)
+	if err != nil || !allowed {
+		return allowed, err
+	}
+	allowed, err = a.throttleAllow(ctx, t.account, throttleAccountMaxAttempts)
+	if err != nil || !allowed {
+		return allowed, err
+	}
+	return a.throttleAllow(ctx, t.accountIP, throttleMaxAttempts)
 }
 
 // throttleReset clears the attempt counter after a successful login.
