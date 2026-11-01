@@ -2,6 +2,7 @@ package goauth
 
 import (
 	"errors"
+	"mime"
 	"net/http"
 	"time"
 
@@ -114,6 +115,10 @@ func (r *loginRequest) id() string {
 }
 
 func (a *Auth) handleLogin(c echo.Context) error {
+	mediaType, _, err := mime.ParseMediaType(c.Request().Header.Get(echo.HeaderContentType))
+	if err != nil || mediaType != "application/json" {
+		return echo.NewHTTPError(http.StatusUnsupportedMediaType, "content type must be application/json")
+	}
 	if err := a.rejectWhenOIDCRequired(); err != nil {
 		return err
 	}

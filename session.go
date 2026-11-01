@@ -3,6 +3,8 @@ package goauth
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -30,16 +32,21 @@ func (a *Auth) SessionMiddleware() echo.MiddlewareFunc {
 	}
 }
 
-// originCheckMiddleware rejects unsafe cross-origin browser requests. Non
-// browser clients without an Origin header pass through (cookies cannot be
-// forged without a browser).
+// originCheckMiddleware rejects unsafe requests from untrusted origins. When
+// Origin is absent, it checks Fetch Metadata or Referer when available.
 func (a *Auth) originCheckMiddleware() echo.MiddlewareFunc {
 	allowed := map[string]struct{}{}
 	for _, o := range a.cfg.Origins {
 		allowed[o] = struct{}{}
+		if normalized, ok := originOf(o); ok {
+			allowed[normalized] = struct{}{}
+		}
 	}
 	if a.cfg.PublicBaseURL != "" {
 		allowed[a.cfg.PublicBaseURL] = struct{}{}
+		if normalized, ok := originOf(a.cfg.PublicBaseURL); ok {
+			allowed[normalized] = struct{}{}
+		}
 	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -48,15 +55,59 @@ func (a *Auth) originCheckMiddleware() echo.MiddlewareFunc {
 				return next(c)
 			}
 			origin := c.Request().Header.Get("Origin")
-			if origin == "" || origin == "null" {
-				return next(c)
-			}
-			if _, ok := allowed[origin]; !ok {
+			if origin == "null" {
 				return echo.NewHTTPError(http.StatusForbidden, "origin not allowed")
 			}
+			if origin != "" {
+				if _, ok := allowed[origin]; ok {
+					return next(c)
+				}
+				if normalized, ok := originOf(origin); ok {
+					if _, allowed := allowed[normalized]; allowed {
+						return next(c)
+					}
+				}
+				return echo.NewHTTPError(http.StatusForbidden, "origin not allowed")
+			}
+
+			fetchSite, hasFetchSite := c.Request().Header[http.CanonicalHeaderKey("Sec-Fetch-Site")]
+			if hasFetchSite {
+				if len(fetchSite) == 1 && (fetchSite[0] == "same-origin" || fetchSite[0] == "none") {
+					return next(c)
+				}
+				return echo.NewHTTPError(http.StatusForbidden, "origin not allowed")
+			}
+
+			referer, hasReferer := c.Request().Header[http.CanonicalHeaderKey("Referer")]
+			if hasReferer {
+				if len(referer) != 1 {
+					return echo.NewHTTPError(http.StatusForbidden, "origin not allowed")
+				}
+				normalized, ok := originOf(referer[0])
+				if !ok {
+					return echo.NewHTTPError(http.StatusForbidden, "origin not allowed")
+				}
+				if _, ok := allowed[normalized]; !ok {
+					return echo.NewHTTPError(http.StatusForbidden, "origin not allowed")
+				}
+				return next(c)
+			}
+
 			return next(c)
 		}
 	}
+}
+
+func originOf(raw string) (string, bool) {
+	u, err := url.Parse(raw)
+	if err != nil || !u.IsAbs() || u.Host == "" {
+		return "", false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", false
+	}
+	return scheme + "://" + strings.ToLower(u.Host), true
 }
 
 // createSession renews the session token (fixation protection) and binds it
