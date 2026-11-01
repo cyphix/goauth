@@ -200,6 +200,27 @@ func (a *Auth) SetPassword(userID uint, password string) error {
 	}).Error
 }
 
+func (a *Auth) setPasswordIfVersion(userID uint, version int, password string) error {
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+	hash, err := hashPassword(password)
+	if err != nil {
+		return err
+	}
+	res := a.db.Model(&User{}).Where("id = ? AND session_version = ?", userID, version).Updates(map[string]any{
+		"password_hash":   hash,
+		"session_version": gorm.Expr("session_version + 1"),
+	})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrConcurrentUpdate
+	}
+	return nil
+}
+
 // ChangePassword verifies the current password before setting a new one.
 // Passwordless accounts (passkey/OIDC only) set an initial password without
 // verification — the authenticated session is the authorization.
@@ -208,8 +229,12 @@ func (a *Auth) ChangePassword(userID uint, currentPassword, newPassword string) 
 	if err != nil {
 		return err
 	}
+	return a.changePassword(user, currentPassword, newPassword)
+}
+
+func (a *Auth) changePassword(user *User, currentPassword, newPassword string) error {
 	if !user.HasPassword() {
-		return a.SetPassword(userID, newPassword)
+		return a.setPasswordIfVersion(user.ID, user.SessionVersion, newPassword)
 	}
 	match, err := argon2id.ComparePasswordAndHash(currentPassword, *user.PasswordHash)
 	if err != nil {
@@ -218,7 +243,7 @@ func (a *Auth) ChangePassword(userID uint, currentPassword, newPassword string) 
 	if !match {
 		return ErrInvalidCredentials
 	}
-	return a.SetPassword(userID, newPassword)
+	return a.setPasswordIfVersion(user.ID, user.SessionVersion, newPassword)
 }
 
 // ProfilePatch is a partial self-service update of the caller's profile.
@@ -297,12 +322,21 @@ func (a *Auth) UpdateUser(id uint, patch UserPatch) (*User, error) {
 		}
 		updates["password_hash"] = hash
 	}
-	if patch.Password != nil || (patch.Role != nil && *patch.Role != user.Role) || disabling {
+	bumpingSessionVersion := patch.Password != nil || (patch.Role != nil && *patch.Role != user.Role) || disabling
+	if bumpingSessionVersion {
 		updates["session_version"] = gorm.Expr("session_version + 1")
 	}
 	if len(updates) > 0 {
-		if err := a.db.Model(user).Updates(updates).Error; err != nil {
-			return nil, err
+		query := a.db.Model(user)
+		if bumpingSessionVersion {
+			query = query.Where("session_version = ?", user.SessionVersion)
+		}
+		res := query.Updates(updates)
+		if res.Error != nil {
+			return nil, res.Error
+		}
+		if bumpingSessionVersion && res.RowsAffected == 0 {
+			return nil, ErrConcurrentUpdate
 		}
 	}
 	return a.findUserFull(id)

@@ -152,6 +152,27 @@ func TestSetPasswordIncrementsSessionVersion(t *testing.T) {
 	assert.Equal(t, before.SessionVersion+1, after.SessionVersion)
 }
 
+func TestChangePasswordRejectsStaleSessionVersion(t *testing.T) {
+	env := newTestEnv(t, nil)
+	bob, err := env.auth.CreateUser("bob", "bob-password-1", "", RoleUser)
+	require.NoError(t, err)
+	stale, err := env.auth.FindUserByID(bob.ID)
+	require.NoError(t, err)
+
+	require.NoError(t, env.auth.SetPassword(bob.ID, "bob-password-2"))
+	err = env.auth.changePassword(stale, "bob-password-1", "bob-password-3")
+	assert.ErrorIs(t, err, ErrConcurrentUpdate)
+
+	_, err = env.auth.Authenticate("bob", "bob-password-2")
+	require.NoError(t, err)
+	_, err = env.auth.Authenticate("bob", "bob-password-3")
+	assert.ErrorIs(t, err, ErrInvalidCredentials)
+
+	updated, err := env.auth.FindUserByID(bob.ID)
+	require.NoError(t, err)
+	assert.Equal(t, stale.SessionVersion+1, updated.SessionVersion)
+}
+
 func TestChangePasswordRevokesOtherSessions(t *testing.T) {
 	env := newTestEnv(t, nil)
 	_, err := env.auth.CreateUser("bob", "bob-password-1", "", RoleUser)

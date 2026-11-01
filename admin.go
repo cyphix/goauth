@@ -120,7 +120,7 @@ func (a *Auth) handleAdminUpdateUser(c echo.Context) error {
 	if err != nil {
 		return mapServiceError(err)
 	}
-	if current := CurrentUser(c); current != nil && current.ID == id && !user.Disabled && user.SessionVersion != current.SessionVersion {
+	if current := CurrentUser(c); current != nil && current.ID == id && !user.Disabled && user.SessionVersion == current.SessionVersion+1 {
 		if err := a.createSession(c, user); err != nil {
 			return err
 		}

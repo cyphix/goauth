@@ -23,4 +23,6 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	// ErrNotFound is returned when a record does not exist.
 	ErrNotFound = errors.New("not found")
+	// ErrConcurrentUpdate is returned when a session-version bump lost a race with another update; retry.
+	ErrConcurrentUpdate = errors.New("account was modified concurrently")
 )
