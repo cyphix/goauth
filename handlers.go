@@ -119,6 +119,17 @@ func (a *Auth) handleLogin(c echo.Context) error {
 	if err != nil || mediaType != "application/json" {
 		return echo.NewHTTPError(http.StatusUnsupportedMediaType, "content type must be application/json")
 	}
+
+	ctx := c.Request().Context()
+	ip := a.cfg.ClientIP(c.Request())
+	allowed, err := a.throttleAllow(ctx, loginIPThrottleKey(ip), throttleIPMaxAttempts)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return echo.NewHTTPError(http.StatusTooManyRequests, "too many login attempts, try again later")
+	}
+
 	if err := a.rejectWhenOIDCRequired(); err != nil {
 		return err
 	}
@@ -130,8 +141,12 @@ func (a *Auth) handleLogin(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "username and password are required")
 	}
 
-	throttleKey := NormalizeUsername(req.id()) + ":" + c.RealIP()
-	allowed, err := a.throttleAllow(c.Request().Context(), throttleKey)
+	account, err := a.loginAccountKey(req.id())
+	if err != nil {
+		return err
+	}
+	t := newLoginThrottle(account, ip)
+	allowed, err = a.loginAccountThrottleAllow(ctx, t)
 	if err != nil {
 		return err
 	}
@@ -146,7 +161,7 @@ func (a *Auth) handleLogin(c echo.Context) error {
 		}
 		return err
 	}
-	a.throttleReset(c.Request().Context(), throttleKey)
+	a.throttleReset(ctx, t.accountIP)
 
 	if err := a.createSession(c, user); err != nil {
 		return err
