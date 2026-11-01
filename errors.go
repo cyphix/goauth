@@ -23,6 +23,8 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	// ErrNotFound is returned when a record does not exist.
 	ErrNotFound = errors.New("not found")
+	// ErrConcurrentUpdate is returned when a session-version bump lost a race with another update; retry.
+	ErrConcurrentUpdate = errors.New("account was modified concurrently")
 	// ErrPasswordManagedByIdP is returned when an OIDC-linked account without a local password tries to create one via self-service.
 	ErrPasswordManagedByIdP = errors.New("password is managed by the identity provider")
 )

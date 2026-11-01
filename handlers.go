@@ -210,7 +210,7 @@ func (a *Auth) handleChangePassword(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
-	if err := a.ChangePassword(user.ID, req.CurrentPassword, req.NewPassword); err != nil {
+	if err := a.changePassword(user, req.CurrentPassword, req.NewPassword); err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
 			return echo.NewHTTPError(http.StatusUnauthorized, "current password is incorrect")
 		}
@@ -219,6 +219,12 @@ func (a *Auth) handleChangePassword(c echo.Context) error {
 		}
 		return mapServiceError(err)
 	}
+	renewed := *user
+	renewed.SessionVersion++
+	if err := a.createSession(c, &renewed); err != nil {
+		return err
+	}
+	a.attachUser(c, &renewed)
 	return c.NoContent(http.StatusNoContent)
 }
 
@@ -274,6 +280,8 @@ func mapServiceError(err error) error {
 		return nil
 	case IsInputError(err):
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	case errors.Is(err, ErrConcurrentUpdate):
+		return echo.NewHTTPError(http.StatusConflict, "account was modified concurrently; please retry")
 	case errors.Is(err, ErrNotFound):
 		return echo.NewHTTPError(http.StatusNotFound, "not found")
 	default:

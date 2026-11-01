@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	sessionKeyUserID = "goauth_user_id"
+	sessionKeyUserID         = "goauth_user_id"
+	sessionKeySessionVersion = "goauth_session_version"
 
 	echoCtxUserKey = "goauth_user"
 )
@@ -118,6 +119,7 @@ func (a *Auth) createSession(c echo.Context, user *User) error {
 		return err
 	}
 	a.sessions.Put(ctx, sessionKeyUserID, int(user.ID))
+	a.sessions.Put(ctx, sessionKeySessionVersion, user.SessionVersion)
 	return nil
 }
 
@@ -153,6 +155,9 @@ func (a *Auth) loadSessionUser(c echo.Context) (*User, error) {
 		return nil, err
 	}
 	if user.Disabled {
+		return nil, nil
+	}
+	if a.sessions.GetInt(c.Request().Context(), sessionKeySessionVersion) != user.SessionVersion {
 		return nil, nil
 	}
 	a.attachUser(c, user)

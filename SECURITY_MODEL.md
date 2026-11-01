@@ -53,6 +53,7 @@ Admins are trusted to run the admin API. They were not listed as an attacker.
 - Origin-header CSRF check on unsafe methods (`session.go` `originCheckMiddleware`): `Origin: null` is rejected; a missing Origin falls back to `Sec-Fetch-Site` (`same-origin`/`none`) or an allowed `Referer`, and passes when neither is present. Login also requires `application/json`. The session cookie is `HttpOnly` and `SameSite=Lax`.
 - The session token is renewed on login (`createSession` → `RenewToken`), and logout destroys the session.
 - Disabled users are rejected on every session load. The last active admin cannot be disabled or demoted (`isLastActiveAdmin`).
+- Password change, admin password reset, role change and disabling bump `User.SessionVersion`; sessions record the version at login and are rejected in `loadSessionUser` once stale. A self-service password change renews the current session.
 - OIDC-linked accounts without a local password cannot self-create one; an administrator must set it.
 - Login throttle: 10 attempts per 5 minutes, keyed by `username:RealIP`, in Redis. Its accuracy depends on how the host app's Echo `IPExtractor` reads proxy headers.
 - OIDC: state, nonce and PKCE S256 checks, ID-token verification bound to the ClientID, `email_verified` required before an email is adopted, and `safeNextPath` blocks `//` and absolute URLs. Auto-provisioning is off unless enabled per provider.
