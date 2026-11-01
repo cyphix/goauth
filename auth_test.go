@@ -252,6 +252,68 @@ func TestOriginCheckCSRF(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+func TestOriginCheckCSRFWithMissingOrigin(t *testing.T) {
+	env := newTestEnv(t, nil)
+	tests := []struct {
+		name          string
+		headers       map[string]string
+		wantForbidden bool
+	}{
+		{name: "null origin", headers: map[string]string{"Origin": "null"}, wantForbidden: true},
+		{name: "cross-site fetch metadata", headers: map[string]string{"Sec-Fetch-Site": "cross-site"}, wantForbidden: true},
+		{name: "same-site fetch metadata", headers: map[string]string{"Sec-Fetch-Site": "same-site"}, wantForbidden: true},
+		{name: "untrusted referer", headers: map[string]string{"Referer": "https://evil.example.com/page"}, wantForbidden: true},
+		{name: "invalid referer", headers: map[string]string{"Referer": "::bad"}, wantForbidden: true},
+		{name: "same-origin fetch metadata", headers: map[string]string{"Sec-Fetch-Site": "same-origin"}},
+		{name: "none fetch metadata", headers: map[string]string{"Sec-Fetch-Site": "none"}},
+		{name: "trusted referer", headers: map[string]string{"Referer": env.server.URL + "/login"}},
+		{name: "no origin metadata"},
+		{name: "trusted origin", headers: map[string]string{"Origin": env.server.URL}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodPost, env.url("/auth/login"), strings.NewReader(`{"username":"admin","password":"admin-password-1"}`))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			for name, value := range tt.headers {
+				req.Header.Set(name, value)
+			}
+
+			resp, err := env.client().Do(req)
+			require.NoError(t, err)
+			resp.Body.Close()
+			if tt.wantForbidden {
+				assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+			} else {
+				assert.NotEqual(t, http.StatusForbidden, resp.StatusCode)
+			}
+		})
+	}
+}
+
+func TestLoginRequiresJSONContentType(t *testing.T) {
+	env := newTestEnv(t, nil)
+
+	formReq, err := http.NewRequest(http.MethodPost, env.url("/auth/login"), strings.NewReader("username=admin&password=admin-password-1"))
+	require.NoError(t, err)
+	formReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	formReq.Header.Set("Origin", env.server.URL)
+	formResp, err := env.client().Do(formReq)
+	require.NoError(t, err)
+	formResp.Body.Close()
+	assert.Equal(t, http.StatusUnsupportedMediaType, formResp.StatusCode)
+
+	jsonReq, err := http.NewRequest(http.MethodPost, env.url("/auth/login"), strings.NewReader(`{"username":"admin","password":"admin-password-1"}`))
+	require.NoError(t, err)
+	jsonReq.Header.Set("Content-Type", "application/json; charset=utf-8")
+	jsonReq.Header.Set("Origin", env.server.URL)
+	jsonResp, err := env.client().Do(jsonReq)
+	require.NoError(t, err)
+	jsonResp.Body.Close()
+	assert.Equal(t, http.StatusOK, jsonResp.StatusCode)
+}
+
 func TestDevAutoLogin(t *testing.T) {
 	env := newTestEnv(t, func(cfg *Config) { cfg.DevAutoLogin = true })
 	client := env.client()

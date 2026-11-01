@@ -222,8 +222,7 @@ func (a *Auth) setPasswordIfVersion(userID uint, version int, password string) e
 }
 
 // ChangePassword verifies the current password before setting a new one.
-// Passwordless accounts (passkey/OIDC only) set an initial password without
-// verification — the authenticated session is the authorization.
+// Passwordless non-OIDC accounts may set an initial password via their session.
 func (a *Auth) ChangePassword(userID uint, currentPassword, newPassword string) error {
 	user, err := a.FindUserByID(userID)
 	if err != nil {
@@ -234,6 +233,9 @@ func (a *Auth) ChangePassword(userID uint, currentPassword, newPassword string) 
 
 func (a *Auth) changePassword(user *User, currentPassword, newPassword string) error {
 	if !user.HasPassword() {
+		if user.OIDCSub != nil {
+			return ErrPasswordManagedByIdP
+		}
 		return a.setPasswordIfVersion(user.ID, user.SessionVersion, newPassword)
 	}
 	match, err := argon2id.ComparePasswordAndHash(currentPassword, *user.PasswordHash)
