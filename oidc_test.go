@@ -61,6 +61,13 @@ func TestOIDCLoginAutoProvision(t *testing.T) {
 	assert.False(t, me.HasPassword)
 	assert.True(t, me.OIDCLinked)
 
+	resp = env.doJSON(client, http.MethodPost, "/auth/password", changePasswordRequest{NewPassword: "first-password-1"}, nil)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+	resp = env.doJSON(env.client(), http.MethodPost, "/auth/login",
+		loginRequest{Username: "mockuser", Password: "first-password-1"}, nil)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
 	// Second login with the same sub reuses the account (no duplicate).
 	client2 := env.client()
 	followOIDCFlow(t, env, client2, providerID)

@@ -2,6 +2,7 @@ package goauth
 
 import (
 	"errors"
+	"mime"
 	"net/http"
 	"time"
 
@@ -114,6 +115,11 @@ func (r *loginRequest) id() string {
 }
 
 func (a *Auth) handleLogin(c echo.Context) error {
+	mediaType, _, err := mime.ParseMediaType(c.Request().Header.Get(echo.HeaderContentType))
+	if err != nil || mediaType != "application/json" {
+		return echo.NewHTTPError(http.StatusUnsupportedMediaType, "content type must be application/json")
+	}
+
 	ctx := c.Request().Context()
 	ip := a.cfg.ClientIP(c.Request())
 	allowed, err := a.throttleAllow(ctx, loginIPThrottleKey(ip), throttleIPMaxAttempts)
@@ -222,6 +228,9 @@ func (a *Auth) handleChangePassword(c echo.Context) error {
 	if err := a.ChangePassword(user.ID, req.CurrentPassword, req.NewPassword); err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
 			return echo.NewHTTPError(http.StatusUnauthorized, "current password is incorrect")
+		}
+		if errors.Is(err, ErrPasswordManagedByIdP) {
+			return echo.NewHTTPError(http.StatusForbidden, "this account signs in through an identity provider; ask an administrator to set a local password")
 		}
 		return mapServiceError(err)
 	}

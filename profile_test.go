@@ -99,6 +99,23 @@ func TestPasswordlessAccountSetsPassword(t *testing.T) {
 	env.login(env.client(), "nopass", "second-password-1")
 }
 
+func TestOIDCLinkedAccountCannotSetInitialPassword(t *testing.T) {
+	env := newTestEnv(t, nil)
+	user, err := env.auth.CreateUser("oidc-nopass", "", "", RoleUser)
+	require.NoError(t, err)
+	require.NoError(t, env.auth.DB().Model(user).Update("oidc_sub", "oidc-nopass-sub").Error)
+
+	err = env.auth.ChangePassword(user.ID, "", "first-password-1")
+	assert.ErrorIs(t, err, ErrPasswordManagedByIdP)
+
+	user, err = env.auth.FindUserByID(user.ID)
+	require.NoError(t, err)
+	assert.False(t, user.HasPassword())
+
+	require.NoError(t, env.auth.SetPassword(user.ID, "admin-set-pass-1"))
+	require.NoError(t, env.auth.ChangePassword(user.ID, "admin-set-pass-1", "updated-password-1"))
+}
+
 func TestAdminCreateAndPatchEmail(t *testing.T) {
 	env := newTestEnv(t, nil)
 	admin := env.adminClient()

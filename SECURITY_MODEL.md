@@ -50,9 +50,10 @@ Three Go libraries. Five apps vendor them as git submodules under `pkg/`, wired 
 Admins are trusted to run the admin API. They were not listed as an attacker.
 
 ## Existing controls
-- Origin-header CSRF check on unsafe methods (`session.go` `originCheckMiddleware`). Requests with no Origin header, or with `Origin: null`, pass. The session cookie is `HttpOnly` and `SameSite=Lax`.
+- Origin-header CSRF check on unsafe methods (`session.go` `originCheckMiddleware`): `Origin: null` is rejected; a missing Origin falls back to `Sec-Fetch-Site` (`same-origin`/`none`) or an allowed `Referer`, and passes when neither is present. Login also requires `application/json`. The session cookie is `HttpOnly` and `SameSite=Lax`.
 - The session token is renewed on login (`createSession` → `RenewToken`), and logout destroys the session.
 - Disabled users are rejected on every session load. The last active admin cannot be disabled or demoted (`isLastActiveAdmin`).
+- OIDC-linked accounts without a local password cannot self-create one; an administrator must set it.
 - Login throttle: three Redis counters with a 5-minute window — 10 attempts per account + client IP, 30 per account across IPs, and 100 per client IP across accounts. Keys use `Config.ClientIP`, which defaults to the TCP peer address; X-Forwarded-For / X-Real-IP are ignored unless a trusted extractor is configured.
 - OIDC: state, nonce and PKCE S256 checks, ID-token verification bound to the ClientID, `email_verified` required before an email is adopted, and `safeNextPath` blocks `//` and absolute URLs. Auto-provisioning is off unless enabled per provider.
 - Passkeys: discoverable login, the clone-warning check, and user-scoped credential deletion.
