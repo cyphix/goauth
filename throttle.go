@@ -44,22 +44,21 @@ func (a *Auth) loginAccountKey(identifier string) (string, error) {
 	return "", err
 }
 
-type loginThrottle struct{ ip, account, accountIP string }
+type loginThrottle struct{ account, accountIP string }
 
 func newLoginThrottle(account, ip string) loginThrottle {
 	return loginThrottle{
-		ip:        "ip:" + ip,
 		account:   "acct:" + account,
 		accountIP: "acctip:" + ip + "|" + account,
 	}
 }
 
-func (a *Auth) loginThrottleAllow(ctx context.Context, t loginThrottle) (bool, error) {
-	allowed, err := a.throttleAllow(ctx, t.ip, throttleIPMaxAttempts)
-	if err != nil || !allowed {
-		return allowed, err
-	}
-	allowed, err = a.throttleAllow(ctx, t.account, throttleAccountMaxAttempts)
+func loginIPThrottleKey(ip string) string {
+	return "ip:" + ip
+}
+
+func (a *Auth) loginAccountThrottleAllow(ctx context.Context, t loginThrottle) (bool, error) {
+	allowed, err := a.throttleAllow(ctx, t.account, throttleAccountMaxAttempts)
 	if err != nil || !allowed {
 		return allowed, err
 	}

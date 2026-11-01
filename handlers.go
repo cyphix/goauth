@@ -114,6 +114,16 @@ func (r *loginRequest) id() string {
 }
 
 func (a *Auth) handleLogin(c echo.Context) error {
+	ctx := c.Request().Context()
+	ip := a.cfg.ClientIP(c.Request())
+	allowed, err := a.throttleAllow(ctx, loginIPThrottleKey(ip), throttleIPMaxAttempts)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return echo.NewHTTPError(http.StatusTooManyRequests, "too many login attempts, try again later")
+	}
+
 	if err := a.rejectWhenOIDCRequired(); err != nil {
 		return err
 	}
@@ -129,8 +139,8 @@ func (a *Auth) handleLogin(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	t := newLoginThrottle(account, a.cfg.ClientIP(c.Request()))
-	allowed, err := a.loginThrottleAllow(c.Request().Context(), t)
+	t := newLoginThrottle(account, ip)
+	allowed, err = a.loginAccountThrottleAllow(ctx, t)
 	if err != nil {
 		return err
 	}
@@ -145,7 +155,7 @@ func (a *Auth) handleLogin(c echo.Context) error {
 		}
 		return err
 	}
-	a.throttleReset(c.Request().Context(), t.accountIP)
+	a.throttleReset(ctx, t.accountIP)
 
 	if err := a.createSession(c, user); err != nil {
 		return err

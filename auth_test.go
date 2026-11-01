@@ -1,6 +1,7 @@
 package goauth
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -273,10 +274,26 @@ func TestLoginThrottlePerIP(t *testing.T) {
 	})
 	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
 
+	ipCount, err := env.auth.redis.Get(context.Background(), throttlePrefix+loginIPThrottleKey(ip)).Int64()
+	require.NoError(t, err)
+	assert.Equal(t, int64(throttleIPMaxAttempts+1), ipCount)
+
 	resp = env.doJSONWithHeaders(client, http.MethodPost, "/auth/login", loginRequest{Username: "admin", Password: "admin-password-1"}, nil, map[string]string{
 		"X-Test-IP": "192.0.2.101",
 	})
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	sqlDB, err := env.auth.DB().DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+
+	resp = env.doJSONWithHeaders(env.client(), http.MethodPost, "/auth/login", loginRequest{Username: "admin", Password: "admin-password-1"}, nil, map[string]string{
+		"X-Test-IP": ip,
+	})
+	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	ipCount, err = env.auth.redis.Get(context.Background(), throttlePrefix+loginIPThrottleKey(ip)).Int64()
+	require.NoError(t, err)
+	assert.Equal(t, int64(throttleIPMaxAttempts+2), ipCount)
 }
 
 func TestLoginThrottleResetOnSuccess(t *testing.T) {
