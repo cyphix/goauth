@@ -214,6 +214,9 @@ func (a *Auth) handleChangePassword(c echo.Context) error {
 		if errors.Is(err, ErrInvalidCredentials) {
 			return echo.NewHTTPError(http.StatusUnauthorized, "current password is incorrect")
 		}
+		if errors.Is(err, ErrPasswordManagedByIdP) {
+			return echo.NewHTTPError(http.StatusForbidden, "this account signs in through an identity provider; ask an administrator to set a local password")
+		}
 		return mapServiceError(err)
 	}
 	return c.NoContent(http.StatusNoContent)
