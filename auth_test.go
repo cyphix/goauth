@@ -191,6 +191,68 @@ func TestLoginThrottlePerAccount(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
 }
 
+func TestLoginThrottleAccountAliases(t *testing.T) {
+	t.Run("per-account limit", func(t *testing.T) {
+		env := newTestEnv(t, func(cfg *Config) {
+			cfg.ClientIP = func(r *http.Request) string { return r.Header.Get("X-Test-IP") }
+		})
+		admin, err := env.auth.FindUserByUsername("admin")
+		require.NoError(t, err)
+		email := "admin@example.com"
+		_, err = env.auth.UpdateProfile(admin.ID, ProfilePatch{Email: &email})
+		require.NoError(t, err)
+
+		client := env.client()
+		for i := 0; i < throttleAccountMaxAttempts; i++ {
+			identifier := "admin"
+			if i%2 != 0 {
+				identifier = email
+			}
+			resp := env.doJSONWithHeaders(client, http.MethodPost, "/auth/login", loginRequest{
+				Identifier: identifier,
+				Password:   "wrong",
+			}, nil, map[string]string{"X-Test-IP": fmt.Sprintf("192.0.2.%d", i+1)})
+			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		}
+
+		resp := env.doJSONWithHeaders(client, http.MethodPost, "/auth/login", loginRequest{
+			Identifier: email,
+			Password:   "admin-password-1",
+		}, nil, map[string]string{"X-Test-IP": "192.0.2.31"})
+		assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	})
+
+	t.Run("per-account-IP limit", func(t *testing.T) {
+		env := newTestEnv(t, func(cfg *Config) {
+			cfg.ClientIP = func(r *http.Request) string { return r.Header.Get("X-Test-IP") }
+		})
+		admin, err := env.auth.FindUserByUsername("admin")
+		require.NoError(t, err)
+		email := "admin@example.com"
+		_, err = env.auth.UpdateProfile(admin.ID, ProfilePatch{Email: &email})
+		require.NoError(t, err)
+
+		client := env.client()
+		for i := 0; i < throttleMaxAttempts; i++ {
+			identifier := "admin"
+			if i%2 != 0 {
+				identifier = email
+			}
+			resp := env.doJSONWithHeaders(client, http.MethodPost, "/auth/login", loginRequest{
+				Identifier: identifier,
+				Password:   "wrong",
+			}, nil, map[string]string{"X-Test-IP": "192.0.2.100"})
+			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		}
+
+		resp := env.doJSONWithHeaders(client, http.MethodPost, "/auth/login", loginRequest{
+			Identifier: email,
+			Password:   "admin-password-1",
+		}, nil, map[string]string{"X-Test-IP": "192.0.2.100"})
+		assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	})
+}
+
 func TestLoginThrottlePerIP(t *testing.T) {
 	env := newTestEnv(t, func(cfg *Config) {
 		cfg.ClientIP = func(r *http.Request) string { return r.Header.Get("X-Test-IP") }

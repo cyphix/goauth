@@ -125,7 +125,11 @@ func (a *Auth) handleLogin(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "username and password are required")
 	}
 
-	t := newLoginThrottle(req.id(), a.cfg.ClientIP(c.Request()))
+	account, err := a.loginAccountKey(req.id())
+	if err != nil {
+		return err
+	}
+	t := newLoginThrottle(account, a.cfg.ClientIP(c.Request()))
 	allowed, err := a.loginThrottleAllow(c.Request().Context(), t)
 	if err != nil {
 		return err

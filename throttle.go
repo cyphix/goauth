@@ -2,6 +2,8 @@ package goauth
 
 import (
 	"context"
+	"errors"
+	"strconv"
 	"time"
 )
 
@@ -31,10 +33,20 @@ func (a *Auth) throttleAllow(ctx context.Context, key string, max int64) (bool, 
 	return count <= max, nil
 }
 
+func (a *Auth) loginAccountKey(identifier string) (string, error) {
+	user, err := a.FindUserByIdentifier(identifier)
+	if err == nil {
+		return "uid:" + strconv.FormatUint(uint64(user.ID), 10), nil
+	}
+	if errors.Is(err, ErrNotFound) {
+		return "name:" + NormalizeUsername(identifier), nil
+	}
+	return "", err
+}
+
 type loginThrottle struct{ ip, account, accountIP string }
 
-func newLoginThrottle(identifier, ip string) loginThrottle {
-	account := NormalizeUsername(identifier)
+func newLoginThrottle(account, ip string) loginThrottle {
 	return loginThrottle{
 		ip:        "ip:" + ip,
 		account:   "acct:" + account,
