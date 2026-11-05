@@ -1,0 +1,30 @@
+---
+description: Pre-alpha active development — no legacy compatibility
+alwaysApply: true
+---
+
+# Active Development Policy
+
+This project is **pre-alpha until v0.2.0+**. It is in **fast-paced
+development** and breaking changes are expected.
+
+Until v0.2.0+, backward compatibility, shims, legacy schema support, and
+migration code are **neither required nor permitted**.
+
+## Do Not
+
+- Add legacy migration code, upgrade paths, or data backfill for old schemas
+- Write compatibility shims, deprecated aliases, or wrappers for old API shapes, options, or config keys
+- Keep legacy schema support alongside the current design
+- Add dual code paths for old vs new designs
+
+## Do
+
+- Model the **current correct** API and behavior
+- Change exported APIs directly when the design improves; consumers update in lockstep
+- Prefer correctness over backward compatibility
+
+## Database
+
+- SQLite remains a supported database in this library alongside PostgreSQL.
+  The PostgreSQL-only policy of the cyphix apps does not apply here.
