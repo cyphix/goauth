@@ -178,7 +178,15 @@ func (a *Auth) PasskeysEnabled() bool { return a.webauthn != nil }
 
 // bootstrapInitAdmin creates the initial admin account when no users exist.
 func (a *Auth) bootstrapInitAdmin() error {
-	if a.cfg.InitAdminUsername == "" || a.cfg.InitAdminPassword == "" {
+	switch {
+	case a.cfg.InitAdminUsername == "" && a.cfg.InitAdminPassword == "":
+		a.logger.Debug().Msg("init admin not configured; skipping bootstrap")
+		return nil
+	case a.cfg.InitAdminUsername == "" || a.cfg.InitAdminPassword == "":
+		a.logger.Warn().
+			Bool("username_set", a.cfg.InitAdminUsername != "").
+			Bool("password_set", a.cfg.InitAdminPassword != "").
+			Msg("init admin needs both username and password; skipping bootstrap")
 		return nil
 	}
 	var count int64
@@ -186,6 +194,8 @@ func (a *Auth) bootstrapInitAdmin() error {
 		return err
 	}
 	if count > 0 {
+		a.logger.Info().Str("username", a.cfg.InitAdminUsername).Int64("existing_users", count).
+			Msg("users already exist; skipping init admin bootstrap")
 		return nil
 	}
 	user, err := a.CreateUser(a.cfg.InitAdminUsername, a.cfg.InitAdminPassword, "", RoleAdmin)
