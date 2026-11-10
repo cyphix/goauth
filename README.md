@@ -16,27 +16,22 @@ The companion React package lives in [`web/auth-react`](web/auth-react).
 
 ## Dependencies
 
-Besides Echo, GORM and go-redis, the module builds on two sibling `cyphix`
-modules:
+Besides Echo, GORM and go-redis, the module uses SCS's official
+`github.com/alexedwards/scs/goredisstore` session store and one sibling module:
 
 - **[`github.com/cyphix/gologg`](https://github.com/cyphix/gologg)** —
   zerolog-based structured logging. goauth obtains its logger via
   `logg.Ctx("goauth", "core")`, so log output automatically matches any host
   application that also logs through gologg (level, format and writer are
   configured once by the host).
-- **[`github.com/cyphix/godatabases`](https://github.com/cyphix/godatabases)** —
-  database helpers. goauth uses `godatabases/redis` for the SCS session store
-  (`NewRedisStoreWithPrefix(client, "goauth:session:")`), which keeps all
-  session keys namespaced in Redis. The host app is free to build its
-  `*gorm.DB` / `*redis.Client` with godatabases too (that is what worldbuilder
-  does), but goauth only requires the raw handles.
 
-> **Note:** `go.mod` currently resolves both modules via
-> `replace` directives to sibling checkouts (`../gologg`, `../godatabases`).
-> This matches how the module is consumed as a git submodule next to its
-> siblings (e.g. under `pkg/` in a monorepo). To use goauth standalone, check
-> out all three repos side by side, or drop the `replace` lines and depend on
-> tagged versions.
+Session keys use the `goauth:session:` prefix via
+`goredisstore.NewWithPrefix`. Hosts provide raw `*gorm.DB` and `*redis.Client`
+handles; goauth does not open their connections.
+
+> **Note:** `go.mod` resolves gologg through `replace` to a sibling checkout
+> (`../gologg`). To use goauth standalone, check out these two repositories
+> side by side, or remove that replacement and use the required tagged version.
 
 ## Backend integration (Echo)
 
