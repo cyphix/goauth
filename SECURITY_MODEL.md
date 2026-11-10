@@ -1,12 +1,11 @@
-# Threat model: cyphix Go libraries (goauth, gologg, godatabases)
+# Threat model: cyphix Go libraries (goauth, gologg)
 
 ## System overview
-Three Go libraries. Five apps vendor them as git submodules under `pkg/`, wired up through `replace` directives: **homelab, crm, mystica, healtho, worldbuilder**. Each app is a single Echo binary in a distroless container, and each runs next to Postgres and Redis (see each app's `compose.yml` or `docker-compose.yml`).
+Two Go libraries. Five apps vendor them as git submodules under `pkg/`, wired up through `replace` directives: **homelab, crm, mystica, healtho, worldbuilder**. Each app is a single Echo binary in a distroless container, and each runs next to Postgres and Redis (see each app's `compose.yml` or `docker-compose.yml`).
 - **goauth** is the authentication stack. It is the only library with a network surface. It serves username/password login (argon2id), WebAuthn passkeys, runtime-configurable OIDC (PKCE, state, nonce), server-side SCS sessions stored in Redis, an admin API, and the `@cyphix/auth-react` client package.
-- **godatabases** wraps GORM for SQLite and Postgres (`sql/`) and go-redis (`redis/`). It also provides the SCS Redis session store (`redis/redisstore.go`) that goauth uses with the prefix `goauth:session:`.
-- **gologg** is a thread-safe zerolog wrapper (`logg.go`). goauth and godatabases log through it, and so do the host apps.
+- **gologg** is a thread-safe zerolog wrapper (`logg.go`). goauth logs through it, and so do the host apps.
 
-**Deployment** (user-confirmed): mixed. Some host apps are public on the internet over HTTPS and some are LAN-only. The consuming apps serve as deployment references, and no separate infrastructure repository exists. The compose files default `AUTH_COOKIE_SECURE=true`, require `AUTH_ORIGINS`, `AUTH_RPID` and `AUTH_PUBLIC_BASE_URL`, and default `REDIS_PASSWORD` to empty. Redis and Postgres sit on the compose network. Every app gates `DevAutoLogin` on `SERVER_ENV=development`.
+**Deployment** (user-confirmed): mixed. Some host apps are public on the internet over HTTPS and some are LAN-only. The consuming apps serve as deployment references, and no separate infrastructure repository exists. The compose files default `AUTH_COOKIE_SECURE=true`, require `AUTH_ORIGINS`, `AUTH_RP_ID` and `AUTH_PUBLIC_BASE_URL`, and default `REDIS_PASSWORD` to empty. Redis and Postgres sit on the compose network. Every app gates `DevAutoLogin` on `SERVER_ENV=development`.
 
 ## Trust boundaries
 1. Browser ↔ host app: everything under `/auth/*` (goauth `RegisterRoutes`) plus the host's routes protected by `RequireAuthenticated` / `RequireRole`.
@@ -23,7 +22,7 @@ Three Go libraries. Five apps vendor them as git submodules under `pkg/`, wired 
 | **goauth OIDC** | `goauth/oidc.go` |
 | **goauth Admin API** | `goauth/admin.go` |
 | **auth-react Client** | `goauth/web/auth-react/**` (client.ts, guard.ts, hooks.ts, components) |
-| **godatabases** | `godatabases/sql/**`, `godatabases/redis/**` (including the session store `redisstore.go`) |
+| **SCS Redis session store** | `github.com/alexedwards/scs/goredisstore`, configured with the `goauth:session:` key prefix |
 | **gologg** | `gologg/logg.go` |
 
 ## Entry points and who can reach them
@@ -31,7 +30,7 @@ Three Go libraries. Five apps vendor them as git submodules under `pkg/`, wired 
 - Authenticated users: `PATCH /auth/me`, `POST /auth/password`, passkey registration, list and delete.
 - Admins: `/auth/admin/users*`, `/auth/admin/oidc*`, `/auth/admin/settings`.
 - Dev only: `POST /auth/dev/login`, registered only when `Config.DevAutoLogin` is set.
-- gologg and godatabases have no network entry points. Their inputs come from host configuration and from the data passed through them.
+- gologg has no network entry points. Its inputs come from host configuration and from the data passed through them.
 
 ## Assets
 - Session tokens, the cookie, and the Redis session data. Holding a session means full account takeover, including admin.

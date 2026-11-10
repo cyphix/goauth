@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alexedwards/scs/goredisstore"
 	"github.com/alexedwards/scs/v2"
-	redisstore "github.com/cyphix/godatabases/redis"
 	logg "github.com/cyphix/gologg"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -134,7 +134,7 @@ func New(cfg Config) (*Auth, error) {
 	}
 
 	sm := scs.New()
-	sm.Store = redisstore.NewRedisStoreWithPrefix(cfg.Redis, "goauth:session:")
+	sm.Store = goredisstore.NewWithPrefix(cfg.Redis, "goauth:session:")
 	sm.Lifetime = cfg.SessionLifetime
 	sm.Cookie.Name = cfg.CookieName
 	sm.Cookie.HttpOnly = true
