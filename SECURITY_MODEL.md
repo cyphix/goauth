@@ -21,7 +21,7 @@ Two Go libraries. Five apps vendor them as git submodules under `pkg/`, wired up
 | **goauth Passkeys** | `goauth/passkey.go` |
 | **goauth OIDC** | `goauth/oidc.go` |
 | **goauth Admin API** | `goauth/admin.go` |
-| **auth-react Client** | `goauth/web/auth-react/**` (client.ts, guard.ts, hooks.ts, components) |
+| **auth-react Client** | `goauth/web/auth-react/**` (client.ts, guard.ts, hooks.ts, types.ts) |
 | **SCS Redis session store** | `github.com/alexedwards/scs/goredisstore`, configured with the `goauth:session:` key prefix |
 | **gologg** | `gologg/logg.go` |
 

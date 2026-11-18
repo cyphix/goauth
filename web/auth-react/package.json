@@ -1,12 +1,11 @@
 {
   "name": "@cyphix/auth-react",
   "version": "0.2.0",
-  "description": "React client, hooks and components for the goauth authentication module",
+  "description": "React client, hooks and route guards for the goauth authentication module",
   "license": "MIT",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./styles.css": "./src/styles.css"
+    ".": "./src/index.ts"
   },
   "types": "./src/index.ts",
   "files": ["src"],

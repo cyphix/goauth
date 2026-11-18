@@ -1,6 +1,6 @@
 # @cyphix/auth-react
 
-React client, TanStack Query hooks, components and a TanStack Router guard for
+React client, TanStack Query hooks and TanStack Router guards for
 the [goauth](../..) backend. Ships as TypeScript source — bundle it with your
 app (Vite handles this out of the box).
 
@@ -18,14 +18,6 @@ Peer dependencies: `react`, `@tanstack/react-query`, `@tanstack/react-router`.
 ## Usage
 
 ```tsx
-import "@cyphix/auth-react/styles.css"; // optional default styling
-
-// Login page: renders per GET /auth/config — password form, passkey button
-// beneath it, OIDC buttons beneath that; in required mode it redirects
-// straight to the provider.
-import { LoginForm } from "@cyphix/auth-react";
-<LoginForm onSuccess={() => navigate({ to: "/" })} />;
-
 // Route guard for an authenticated layout route (handles dev auto-login and
 // required-OIDC bypass):
 import { requireAuthBeforeLoad } from "@cyphix/auth-react";
@@ -45,17 +37,27 @@ still enforce it immediately).
 
 ```tsx
 
-// Session hooks:
+import { useMe, useLogout } from "@cyphix/auth-react";
+
 const { data: me } = useMe();
 const logout = useLogout();
-
-// Admin pages:
-<UserManagementPanel />
-<OidcSettingsPanel />
-
-// Profile page:
-<PasskeyManager />
 ```
 
 All requests go to same-origin `/auth/*` with cookies; pass a custom
 `AuthClient` through `AuthClientContext` to change the base path.
+
+## Visual UI
+
+This package is headless: it provides no visual components or stylesheet.
+Install the shared shadcn UI from the
+[cyphix/react-components registry](https://github.com/cyphix/react-components)
+in your app instead:
+
+```sh
+pnpm dlx shadcn@latest add cyphix/react-components/auth-login-form cyphix/react-components/auth-profile-card cyphix/react-components/auth-passkeys-card cyphix/react-components/auth-users-card
+```
+
+The registry also provides `settings-nav`, `settings-layout` and
+`auth-admin-guard`. OIDC administration can be built with the retained
+`useAuthSettings`, `useUpdateAuthSettings`, `useOidcProviders`,
+`useCreateOidcProvider`, `useUpdateOidcProvider` and `useDeleteOidcProvider` hooks.
