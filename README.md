@@ -100,6 +100,36 @@ route guards, or call the endpoints below directly. Install the visual auth UI
 from the [cyphix/react-components registry](https://github.com/cyphix/react-components)
 (`auth-login-form`, `auth-profile-card`, `auth-passkeys-card`, `auth-users-card`).
 
+## Avatars
+
+Avatar routes are opt-in and independent of `RegisterRoutes`. Choose your app's
+paths and apply session/authentication and admin-role middleware on the groups:
+
+```go
+me := e.Group("/api/me/avatar", a.SessionMiddleware(), a.RequireAuthenticated())
+admin := e.Group("/api/admin", a.SessionMiddleware(), a.RequireRole(goauth.RoleAdmin))
+a.RegisterAvatarRoutes(me, admin)
+```
+
+This mounts PUT/GET/DELETE `/api/me/avatar` and GET
+`/api/admin/users/:id/avatar`. For example, Worldbuilder can use `/admin` as the
+admin prefix instead. For custom routing, mount `a.UploadAvatar`, `a.Avatar`,
+`a.DeleteAvatar` and `a.UserAvatar` individually with the same middleware.
+
+PUT accepts multipart field `file`. `Config.MaxAvatarBytes` limits the entire
+request (including multipart overhead), defaulting to 8 MiB. Nonempty uploads
+must sniff as `image/*`; bytes are stored as-is, without decoding or resizing.
+Upload replaces any existing avatar. Upload/delete return 204 and bump the
+user's `updated_at` for frontend cache busting. GET returns the stored content
+type and `Cache-Control: private, max-age=0, must-revalidate`, or 204 when absent.
+
+`UserAvatar` stores bytes in `auth_user_avatars`, keyed by `user_id` with a foreign
+key to `auth_users(id)` and `ON DELETE CASCADE` (physical user deletion).
+Applications managing their own migrations **must keep those migrations
+identical to goauth's models**, including `auth_user_avatars`; goauth also adds
+the table through AutoMigrate. SQLite connections must enable foreign-key
+enforcement for cascading deletes (for example, `_foreign_keys=on`).
+
 ## Endpoints (mounted at `/auth` by default)
 
 | Method | Path | Auth | Purpose |

@@ -60,6 +60,17 @@ type User struct {
 
 func (User) TableName() string { return "auth_users" }
 
+// UserAvatar stores the user's avatar image independently of the account row.
+type UserAvatar struct {
+	UserID      uint   `gorm:"primaryKey;autoIncrement:false"`
+	User        User   `gorm:"foreignKey:UserID;references:ID;constraint:OnDelete:CASCADE"`
+	ContentType string `gorm:"not null"`
+	Data        []byte `gorm:"not null"`
+	UpdatedAt   time.Time
+}
+
+func (UserAvatar) TableName() string { return "auth_user_avatars" }
+
 // HasPassword reports whether local password login is possible for the user.
 func (u *User) HasPassword() bool { return u.PasswordHash != nil && *u.PasswordHash != "" }
 

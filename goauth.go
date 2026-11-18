@@ -36,6 +36,8 @@ const (
 	// DefaultMountPath is used when Config.MountPath is empty. It must match
 	// the Echo group prefix passed to RegisterRoutes.
 	DefaultMountPath = "/auth"
+	// DefaultMaxAvatarBytes limits the entire multipart upload request.
+	DefaultMaxAvatarBytes int64 = 8 << 20
 )
 
 // Config configures a goauth instance. DB and Redis are required; everything
@@ -84,6 +86,10 @@ type Config struct {
 	// as the init admin without credentials, and advertises the capability in
 	// GET {mount}/config. NEVER enable outside development builds.
 	DevAutoLogin bool
+
+	// MaxAvatarBytes limits avatar upload request bodies, including multipart
+	// overhead. Non-positive values use DefaultMaxAvatarBytes.
+	MaxAvatarBytes int64
 }
 
 // Auth is the assembled authentication module.
@@ -118,6 +124,9 @@ func New(cfg Config) (*Auth, error) {
 	if cfg.ClientIP == nil {
 		cfg.ClientIP = echo.ExtractIPDirect()
 	}
+	if cfg.MaxAvatarBytes <= 0 {
+		cfg.MaxAvatarBytes = DefaultMaxAvatarBytes
+	}
 	cfg.MountPath = "/" + strings.Trim(cfg.MountPath, "/")
 	cfg.PublicBaseURL = strings.TrimRight(cfg.PublicBaseURL, "/")
 	cfg.InitAdminUsername = NormalizeUsername(cfg.InitAdminUsername)
@@ -129,7 +138,7 @@ func New(cfg Config) (*Auth, error) {
 		logger: logg.Ctx("goauth", "core"),
 	}
 
-	if err := a.db.AutoMigrate(&User{}, &WebauthnCredential{}, &OIDCProvider{}, &Settings{}); err != nil {
+	if err := a.db.AutoMigrate(&User{}, &UserAvatar{}, &WebauthnCredential{}, &OIDCProvider{}, &Settings{}); err != nil {
 		return nil, fmt.Errorf("goauth: migrate tables: %w", err)
 	}
 

@@ -43,7 +43,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 		db, err := gorm.Open(postgres.Open(dsn), gormCfg)
 		require.NoError(t, err)
 		require.NoError(t, db.Migrator().DropTable(
-			"auth_webauthn_credentials", "auth_oidc_providers", "auth_settings", "auth_users",
+			"auth_user_avatars", "auth_webauthn_credentials", "auth_oidc_providers", "auth_settings", "auth_users",
 		))
 		sqlDB, err := db.DB()
 		require.NoError(t, err)
@@ -51,7 +51,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 		return db
 	}
 
-	dsn := fmt.Sprintf("file:goauth_test_%d?mode=memory&cache=shared", testDBCounter.Add(1))
+	dsn := fmt.Sprintf("file:goauth_test_%d?mode=memory&cache=shared&_foreign_keys=on", testDBCounter.Add(1))
 	db, err := gorm.Open(sqlite.Open(dsn), gormCfg)
 	require.NoError(t, err)
 	sqlDB, err := db.DB()
