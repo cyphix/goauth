@@ -95,8 +95,10 @@ user := goauth.UserFromContext(ctx)   // in services / GraphQL resolvers
 ```
 
 The init admin is created on startup when the users table is empty. On the
-frontend, pair this with [`@cyphix/auth-react`](web/auth-react) (`LoginForm`,
-`requireAuthBeforeLoad`, admin panels), or call the endpoints below directly.
+frontend, use [`@cyphix/auth-react`](web/auth-react) for the client, hooks and
+route guards, or call the endpoints below directly. Install the visual auth UI
+from the [cyphix/react-components registry](https://github.com/cyphix/react-components)
+(`auth-login-form`, `auth-profile-card`, `auth-passkeys-card`, `auth-users-card`).
 
 ## Endpoints (mounted at `/auth` by default)
 

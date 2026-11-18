@@ -1,19 +1,4 @@
 export { AuthApiError, AuthClient, defaultAuthClient } from "./client.ts";
-export { LoginForm, type LoginFormProps } from "./components/LoginForm.tsx";
-export {
-  OidcSettingsPanel,
-  type OidcSettingsPanelProps,
-} from "./components/OidcSettingsPanel.tsx";
-export {
-  PasskeyManager,
-  type PasskeyManagerProps,
-} from "./components/PasskeyManager.tsx";
-export {
-  type DeleteUserConfirmRenderProps,
-  type ResetPasswordRenderProps,
-  UserManagementPanel,
-  type UserManagementPanelProps,
-} from "./components/UserManagementPanel.tsx";
 export {
   requireAuthBeforeLoad,
   requireGuestBeforeLoad,
